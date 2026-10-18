@@ -1,0 +1,435 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://Scripts/状态面板.gd" id="1_status"]
+[ext_resource type="FontFile" uid="uid://d4g0sax7dwam6" path="res://Assets/字体/Piedra-Regular.ttf" id="2_piedra"]
+[ext_resource type="Script" path="res://Scripts/BodyMap.gd" id="3_bodymap"]
+
+[sub_resource type="Theme" id="Theme_status"]
+default_font = ExtResource("2_piedra")
+default_font_size = 26
+
+[sub_resource type="StyleBoxFlat" id="SB_frame"]
+content_margin_left = 34.0
+content_margin_top = 26.0
+content_margin_right = 34.0
+content_margin_bottom = 26.0
+bg_color = Color(0.11, 0.09, 0.075, 0.97)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.63, 0.556, 0.44, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="SB_bar_bg"]
+bg_color = Color(0.2, 0.17, 0.14, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="SB_hp_fill"]
+bg_color = Color(0.72, 0.2, 0.17, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="SB_st_fill"]
+bg_color = Color(0.82, 0.65, 0.24, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="SB_sat_fill"]
+bg_color = Color(0.45, 0.62, 0.3, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="SB_venom_fill"]
+bg_color = Color(0.56, 0.83, 0.32, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[node name="StatusPanel" type="CanvasLayer"]
+layer = 90
+process_mode = 3
+script = ExtResource("1_status")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_status")
+
+[node name="Dim" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.025, 0.02, 0.82)
+
+[node name="Stage" type="Control" parent="Root"]
+layout_mode = 1
+offset_right = 1792.0
+offset_bottom = 984.0
+
+[node name="Frame" type="PanelContainer" parent="Root/Stage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("SB_frame")
+
+[node name="Body" type="VBoxContainer" parent="Root/Stage/Frame"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Header" type="HBoxContainer" parent="Root/Stage/Frame/Body"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="Root/Stage/Frame/Body/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.9, 0.78, 1)
+theme_override_font_sizes/font_size = 46
+text = "SNAKE STATUS"
+
+[node name="Spacer" type="Control" parent="Root/Stage/Frame/Body/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Hint" type="Label" parent="Root/Stage/Frame/Body/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.67, 0.57, 1)
+theme_override_font_sizes/font_size = 20
+text = "SPACE / ESC : CLOSE"
+vertical_alignment = 1
+
+[node name="Divider" type="HSeparator" parent="Root/Stage/Frame/Body"]
+layout_mode = 2
+
+[node name="Columns" type="HBoxContainer" parent="Root/Stage/Frame/Body"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 22
+
+[node name="Left" type="VBoxContainer" parent="Root/Stage/Frame/Body/Columns"]
+custom_minimum_size = Vector2(430, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LeftTitle" type="Label" parent="Root/Stage/Frame/Body/Columns/Left"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.82, 0.68, 1)
+theme_override_font_sizes/font_size = 32
+text = "TRAITS"
+
+[node name="LeftSub" type="Label" parent="Root/Stage/Frame/Body/Columns/Left"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.57, 0.48, 1)
+theme_override_font_sizes/font_size = 17
+text = "BUFFS AND DEBUFFS CURRENTLY APPLIED"
+
+[node name="Scroll" type="ScrollContainer" parent="Root/Stage/Frame/Body/Columns/Left"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="TraitsList" type="VBoxContainer" parent="Root/Stage/Frame/Body/Columns/Left/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Sep1" type="VSeparator" parent="Root/Stage/Frame/Body/Columns"]
+layout_mode = 2
+
+[node name="Mid" type="VBoxContainer" parent="Root/Stage/Frame/Body/Columns"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MidTitle" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.82, 0.68, 1)
+theme_override_font_sizes/font_size = 32
+text = "VITALS"
+
+[node name="HpRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HpName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/HpRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "HEALTH"
+
+[node name="HpValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/HpRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.72, 0.68, 1)
+theme_override_font_sizes/font_size = 26
+text = "100 / 100"
+horizontal_alignment = 2
+
+[node name="HpBar" type="ProgressBar" parent="Root/Stage/Frame/Body/Columns/Mid"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_override_styles/background = SubResource("SB_bar_bg")
+theme_override_styles/fill = SubResource("SB_hp_fill")
+value = 100.0
+show_percentage = false
+
+[node name="Gap1" type="Control" parent="Root/Stage/Frame/Body/Columns/Mid"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+
+[node name="AtkRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="AtkName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/AtkRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "ATTACK"
+
+[node name="AtkValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/AtkRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.9, 0.6, 1)
+theme_override_font_sizes/font_size = 34
+text = "12"
+horizontal_alignment = 2
+
+[node name="AtkBase" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.57, 0.48, 1)
+theme_override_font_sizes/font_size = 16
+text = "BASE 12  +  TRAIT BONUS"
+horizontal_alignment = 2
+
+[node name="Gap2" type="Control" parent="Root/Stage/Frame/Body/Columns/Mid"]
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+
+[node name="StamRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StamName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/StamRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "STAMINA"
+
+[node name="StamValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/StamRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.88, 0.55, 1)
+theme_override_font_sizes/font_size = 26
+text = "100%"
+horizontal_alignment = 2
+
+[node name="StamBar" type="ProgressBar" parent="Root/Stage/Frame/Body/Columns/Mid"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/background = SubResource("SB_bar_bg")
+theme_override_styles/fill = SubResource("SB_st_fill")
+value = 100.0
+show_percentage = false
+
+[node name="SatRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SatName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/SatRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "SATIETY"
+
+[node name="SatValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/SatRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.9, 0.6, 1)
+theme_override_font_sizes/font_size = 26
+text = "100%"
+horizontal_alignment = 2
+
+[node name="SatBar" type="ProgressBar" parent="Root/Stage/Frame/Body/Columns/Mid"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/background = SubResource("SB_bar_bg")
+theme_override_styles/fill = SubResource("SB_sat_fill")
+value = 100.0
+show_percentage = false
+
+[node name="VenomRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="VenomName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/VenomRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "VENOM"
+
+[node name="VenomValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/VenomRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.95, 0.45, 1)
+theme_override_font_sizes/font_size = 26
+text = "100%"
+horizontal_alignment = 2
+
+[node name="VenomBar" type="ProgressBar" parent="Root/Stage/Frame/Body/Columns/Mid"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/background = SubResource("SB_bar_bg")
+theme_override_styles/fill = SubResource("SB_venom_fill")
+value = 100.0
+show_percentage = false
+
+[node name="Gap3" type="Control" parent="Root/Stage/Frame/Body/Columns/Mid"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="SpeedRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+
+[node name="SpeedName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/SpeedRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "SPEED"
+
+[node name="SpeedValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/SpeedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.85, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 24
+text = "300"
+horizontal_alignment = 2
+
+[node name="ModeRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+
+[node name="ModeName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/ModeRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "CONTROL"
+
+[node name="ModeValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/ModeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.85, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 24
+text = "KEYBOARD"
+horizontal_alignment = 2
+
+[node name="StateRow" type="HBoxContainer" parent="Root/Stage/Frame/Body/Columns/Mid"]
+layout_mode = 2
+
+[node name="StateName" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/StateRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.78, 0.7, 1)
+theme_override_font_sizes/font_size = 22
+text = "STATE"
+
+[node name="StateValue" type="Label" parent="Root/Stage/Frame/Body/Columns/Mid/StateRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.85, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 24
+text = "NORMAL"
+horizontal_alignment = 2
+
+[node name="Sep2" type="VSeparator" parent="Root/Stage/Frame/Body/Columns"]
+layout_mode = 2
+
+[node name="Right" type="VBoxContainer" parent="Root/Stage/Frame/Body/Columns"]
+custom_minimum_size = Vector2(450, 0)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RightTitle" type="Label" parent="Root/Stage/Frame/Body/Columns/Right"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.97, 0.93, 0.82, 1)
+theme_override_font_sizes/font_size = 34
+text = "SHARP-NOSED VIPER"
+autowrap_mode = 2
+
+[node name="NameSub" type="Label" parent="Root/Stage/Frame/Body/Columns/Right"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.57, 0.48, 1)
+theme_override_font_sizes/font_size = 16
+text = "S-COILED BODY MAP   /   Deinagkistrodon acutus"
+autowrap_mode = 2
+
+[node name="BodyMap" type="Control" parent="Root/Stage/Frame/Body/Columns/Right"]
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("3_bodymap")
+
+[node name="IntegrityLabel" type="Label" parent="Root/Stage/Frame/Body/Columns/Right"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.85, 0.62, 1)
+theme_override_font_sizes/font_size = 32
+text = "LIMB INTEGRITY   100.0%"
+
+[node name="IntegrityDetail" type="Label" parent="Root/Stage/Frame/Body/Columns/Right"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.67, 0.57, 1)
+theme_override_font_sizes/font_size = 20
+text = "30 / 30 SEGMENTS INTACT      WOUNDED 0      EATEN 0"
+
+[node name="Sep3" type="VSeparator" parent="Root/Stage/Frame/Body/Columns"]
+layout_mode = 2
+
+[node name="Slots" type="VBoxContainer" parent="Root/Stage/Frame/Body/Columns"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="SlotsTitle" type="Label" parent="Root/Stage/Frame/Body/Columns/Slots"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.82, 0.68, 1)
+theme_override_font_sizes/font_size = 32
+text = "CREATURES"
+
+[node name="SlotsSub" type="Label" parent="Root/Stage/Frame/Body/Columns/Slots"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.57, 0.48, 1)
+theme_override_font_sizes/font_size = 17
+text = "PLAYABLE SLOTS - MORE TO COME"
+
+[node name="SlotList" type="VBoxContainer" parent="Root/Stage/Frame/Body/Columns/Slots"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="Footer" type="Label" parent="Root/Stage/Frame/Body"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.5, 0.43, 1)
+theme_override_font_sizes/font_size = 18
+text = "G / H / T : TEST DAMAGE, HEAL, TEMP BUFF"

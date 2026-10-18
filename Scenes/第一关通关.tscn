@@ -1,0 +1,30 @@
+[gd_scene format=3 uid="uid://c4igs7ihg7aq3"]
+
+[ext_resource type="Script" uid="uid://hqyfljeq5tth" path="res://Scripts/通关.gd" id="1_done"]
+[ext_resource type="Texture2D" uid="uid://dn4ukepajx4n5" path="res://Assets/背景/第一关通关.png" id="2_art"]
+[ext_resource type="PackedScene" path="res://snake/Snake.tscn" id="3_snake"]
+
+[sub_resource type="Curve2D" id="Curve2D_path"]
+_data = {
+"points": PackedVector2Array(0, 0, 0, 0, 1233, 286, 0, 0, 0, 0, 1014, 482, 0, 0, 0, 0, 1138, 555, 0, 0, 0, 0, 1110, 596, 0, 0, 0, 0, 1212, 588, 0, 0, 0, 0, 1344, 644, 0, 0, 0, 0, 1349, 814, 0, 0, 0, 0, 1306, 880, 0, 0, 0, 0, 1339, 987, 0, 0, 0, 0, 1266, 1067, 0, 0, 0, 0, 1332, 1168, 0, 0, 0, 0, 1250, 1305, 0, 0, 0, 0, 1317, 1489, 0, 0, 0, 0, 1255, 1577)
+}
+point_count = 14
+
+[node name="第一关通关" type="Node2D" unique_id=1346072400]
+script = ExtResource("1_done")
+
+[node name="插画" type="Sprite2D" parent="." unique_id=1186510198]
+position = Vector2(1250, 1250)
+texture = ExtResource("2_art")
+
+[node name="Path2D" type="Path2D" parent="." unique_id=1586569617]
+position = Vector2(37, 109)
+curve = SubResource("Curve2D_path")
+
+[node name="Snake" parent="." unique_id=833334441 instance=ExtResource("3_snake")]
+position = Vector2(1250, 450)
+control_mode = 3
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1313070658]
+position = Vector2(1250, 450)
+zoom = Vector2(2, 2)

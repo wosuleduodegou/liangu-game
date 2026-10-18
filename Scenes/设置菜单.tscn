@@ -1,0 +1,279 @@
+[gd_scene format=3 uid="uid://bsrkjsuqg6701"]
+
+[ext_resource type="Script" path="res://Scripts/设置菜单.gd" id="1_mk36c"]
+[ext_resource type="FontFile" uid="uid://d4g0sax7dwam6" path="res://Assets/字体/Piedra-Regular.ttf" id="2_piedra"]
+
+[sub_resource type="Theme" id="Theme_settings"]
+default_font = ExtResource("2_piedra")
+default_font_size = 34
+
+[sub_resource type="StyleBoxFlat" id="SB_panel"]
+content_margin_left = 44.0
+content_margin_top = 34.0
+content_margin_right = 44.0
+content_margin_bottom = 34.0
+bg_color = Color(0.18, 0.15, 0.12, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.56, 0.499, 0.42, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="SB_normal"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.56, 0.499, 0.42, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="SB_pressed"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.44, 0.39, 0.33, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="SB_hover"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.88, 0.81, 0.67, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+expand_margin_left = 3.0
+expand_margin_top = 3.0
+expand_margin_right = 3.0
+expand_margin_bottom = 3.0
+shadow_color = Color(1, 0.9, 0.7, 0.4)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="SB_focus"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(1, 0.83, 0.42, 0.07)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.85, 0.45, 1)
+corner_radius_top_left = 11
+corner_radius_top_right = 11
+corner_radius_bottom_right = 11
+corner_radius_bottom_left = 11
+expand_margin_left = 5.0
+expand_margin_top = 5.0
+expand_margin_right = 5.0
+expand_margin_bottom = 5.0
+shadow_color = Color(1, 0.74, 0.32, 0.5)
+shadow_size = 16
+
+[node name="设置菜单" type="Control" unique_id=501888733]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_settings")
+script = ExtResource("1_mk36c")
+
+[node name="Bg" type="ColorRect" parent="." unique_id=380805302]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.07, 0.06, 0.42)
+
+[node name="Center" type="CenterContainer" parent="." unique_id=136652001]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center" unique_id=2064157561]
+custom_minimum_size = Vector2(760, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="Content" type="VBoxContainer" parent="Center/Panel" unique_id=1514573199]
+layout_mode = 2
+theme_override_constants/separation = 26
+
+[node name="Title" type="Label" parent="Center/Panel/Content" unique_id=660152833]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 46
+text = "SETTINGS"
+horizontal_alignment = 1
+
+[node name="Divider" type="HSeparator" parent="Center/Panel/Content" unique_id=1932042345]
+layout_mode = 2
+
+[node name="VolumeRow" type="HBoxContainer" parent="Center/Panel/Content" unique_id=331180945]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="VolumeLabel" type="Label" parent="Center/Panel/Content/VolumeRow" unique_id=1386004934]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 28
+text = "VOLUME"
+vertical_alignment = 1
+
+[node name="VolumeSlider" type="HSlider" parent="Center/Panel/Content/VolumeRow" unique_id=1806162487]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+value = 100.0
+
+[node name="FullscreenCheck" type="CheckButton" parent="Center/Panel/Content" unique_id=1904941307]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 28
+text = "FULLSCREEN"
+
+[node name="ResRow" type="HBoxContainer" parent="Center/Panel/Content" unique_id=802722256]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="ResLabel" type="Label" parent="Center/Panel/Content/ResRow" unique_id=1169857823]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 28
+text = "RESOLUTION"
+vertical_alignment = 1
+
+[node name="Spacer2" type="Control" parent="Center/Panel/Content/ResRow" unique_id=1808766132]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResDown" type="Button" parent="Center/Panel/Content/ResRow" unique_id=1860596985]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+text = "<"
+
+[node name="ResValue" type="Label" parent="Center/Panel/Content/ResRow" unique_id=604332938]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.74, 1)
+theme_override_font_sizes/font_size = 28
+text = "1920 x 1080"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ResUp" type="Button" parent="Center/Panel/Content/ResRow" unique_id=1331659178]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+text = ">"
+
+[node name="LanguageRow" type="HBoxContainer" parent="Center/Panel/Content" unique_id=1896534146]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="LanguageLabel" type="Label" parent="Center/Panel/Content/LanguageRow" unique_id=1587974990]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 28
+text = "LANGUAGE"
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Center/Panel/Content/LanguageRow" unique_id=1526763002]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EnButton" type="Button" parent="Center/Panel/Content/LanguageRow" unique_id=28638004]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+toggle_mode = true
+text = "EN"
+
+[node name="ZhButton" type="Button" parent="Center/Panel/Content/LanguageRow" unique_id=1564094500]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+toggle_mode = true
+text = "中文"
+
+[node name="BackButton" type="Button" parent="Center/Panel/Content" unique_id=2033470304]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+text = "BACK"
+
+[node name="Hint" type="Label" parent="Center/Panel/Content" unique_id=261385197]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.57, 0.48, 1)
+theme_override_font_sizes/font_size = 18
+text = "ESC : BACK"
+horizontal_alignment = 1

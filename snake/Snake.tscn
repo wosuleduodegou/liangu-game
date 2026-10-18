@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://snake/Snake.gd" id="1_snake"]
+[ext_resource type="Script" path="res://Scripts/Metabolism.gd" id="2_metab"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_head"]
+radius = 18.0
+
+[node name="Snake" type="Node2D"]
+script = ExtResource("1_snake")
+
+[node name="HeadArea" type="Area2D" parent="."]
+
+[node name="HeadShape" type="CollisionShape2D" parent="HeadArea"]
+shape = SubResource("CircleShape2D_head")
+
+[node name="Metabolism" type="Node" parent="."]
+script = ExtResource("2_metab")

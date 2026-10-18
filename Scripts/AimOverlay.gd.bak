@@ -1,0 +1,386 @@
+extends Node2D
+
+## 咬击（E + 左键）的锁定指示器与命中反馈。
+##
+## 为什么单独做一层：蛇的视野后处理会把光圈以外压成全黑，如果指示器跟着
+## 蛇画在世界层，锁定圈就整段消失，玩家根本不知道能咬多远。这一层挂在
+## CanvasLayer 上、画在滤镜之上，属于 UI 层。
+##
+## 全屏坐标绘制：世界点先过 get_canvas_transform() 换成屏幕像素，半径乘上
+## 相机缩放。这样相机 zoom 怎么调、镜头怎么跟，指示器都跟蛇头严丝合缝。
+##
+## 它只读蛇的状态，不改任何东西：aiming / has_lock() / lock_point /
+## bite_fx_* 都是公开的。
+
+const FONT : Font = preload("res://Assets/字体/Piedra-Regular.ttf")
+
+const FX_TIME : float = 0.42
+
+## 毒量充足 / 不足时的主色。
+const COL_READY := Color(0.72, 0.95, 0.38)
+const COL_DRY := Color(0.88, 0.36, 0.28)
+const COL_MISS := Color(0.74, 0.72, 0.68)
+## 射程内没有目标时的提示色。
+const COL_IDLE := Color(0.92, 0.86, 0.66)
+## 热感应：蛇和蜈蚣都是"透明 + 白描边"，自己的脊背额外一条红线。
+const COL_HEAT_EDGE := Color(0.93, 0.94, 0.90)
+const COL_HEAT_SELF := Color(1.0, 0.24, 0.16)
+
+var snake : Node = null
+## 锁定建立的一瞬间，用来做"圈从外往里收"的动画。
+var _lock_born : float = -1.0
+var _was_locked : bool = false
+
+## 热感应：当前"盯着"的那只目标，以及盯了多久。
+var _focus_bug : Node = null
+var _focus_t : float = 0.0
+
+func _ready() -> void:
+	_find_snake()
+
+func _find_snake() -> void:
+	snake = get_tree().get_first_node_in_group("snake")
+
+func _process(delta: float) -> void:
+	if snake == null or not is_instance_valid(snake):
+		_find_snake()
+	if snake == null or not is_instance_valid(snake) or not (snake is Node2D):
+		return
+	var locked : bool = bool(snake.aiming) and bool(snake.has_lock())
+	if locked and not _was_locked:
+		_lock_born = Time.get_ticks_msec() * 0.001
+	_was_locked = locked
+
+	# 盯着同一只目标的时间越久，热影越稳定成形；换了目标就清零重来。
+	var f : Node = _pick_focus()
+	if f != null and f == _focus_bug:
+		_focus_t = minf(_focus_t + delta, float(snake.heat_focus_time))
+	else:
+		_focus_t = 0.0
+	_focus_bug = f
+
+	queue_redraw()
+
+## 当前最受注意的目标：瞄准锁定优先，否则是正前方最近的、在感知范围内的那只。
+func _pick_focus() -> Node:
+	if bool(snake.aiming) and bool(snake.has_lock()):
+		return snake.lock_target
+	if snake.points.size() == 0:
+		return null
+	var head_g : Vector2 = snake.to_global(snake.points[0])
+	var hd : float = float(snake.heading)
+	var reach : float = float(snake.heat_range)
+	var best : Node = null
+	var best_d : float = 1e20
+	for bug in get_tree().get_nodes_in_group("centipede"):
+		if not is_instance_valid(bug) or not (bug is Node2D):
+			continue
+		if bug.has_method("is_dead") and bool(bug.call("is_dead")):
+			continue
+		var pts = bug.get("points")
+		if pts == null or pts.size() == 0:
+			continue
+		var v : Vector2 = bug.to_global(pts[0]) - head_g
+		var d : float = v.length()
+		if d > reach:
+			continue
+		if d > 4.0 and absf(angle_difference(hd, v.angle())) > deg_to_rad(70.0):
+			continue
+		if d < best_d:
+			best_d = d
+			best = bug
+	return best
+
+func _draw() -> void:
+	if snake == null or not is_instance_valid(snake):
+		return
+	if not (snake is Node2D):
+		return
+	var pts = snake.points
+	if pts == null or pts.size() == 0:
+		return
+
+	var xf : Transform2D = get_viewport().get_canvas_transform()
+	var zoom : float = maxf(0.001, absf(xf.get_scale().x))
+	var head : Vector2 = xf * snake.to_global(pts[0])
+
+	# 热感应垫在最底下：先有热影，再谈锁定和挥咬。
+	_draw_heat(xf, zoom)
+
+	if snake.aiming:
+		if snake.has_lock():
+			_draw_lock(head, zoom, xf)
+		else:
+			_draw_idle(head, zoom)
+	if snake.bite_fx_time > 0.0:
+		_draw_fx(head, zoom, xf)
+
+# ------------------------------- 热感应 -------------------------------
+## 蝮蛇的颊窝：黑暗中看不见形，只有若隐若现的**描边轮廓**，里面是透的。
+##
+## 自己 = 红线，敌人 = 白线（自己的体温永远感觉得到，别人的要靠冷血蛇去猜）。
+## 清晰度由两件事决定，取较好的那个：
+##   1. 蛇动得越慢越清楚（冲刺时几乎全糊掉、断成一截一截）
+##   2. 盯着同一只目标越久越清楚（一直看着它，即使慢爬也能稳定成像）
+func _draw_heat(xf: Transform2D, zoom: float) -> void:
+	var now : float = Time.get_ticks_msec() * 0.001
+	var walk : float = clampf(float(snake.motion_ratio()), 0.0, 2.0)
+	# 静止 = 1；正常爬行 ≈ 0.4；冲刺 = 0。
+	var still : float = clampf(1.0 - 0.55 * walk, 0.0, 1.0)
+	var heat_r : float = float(snake.heat_range)
+	var focus : float = clampf(_focus_t / maxf(0.1, float(snake.heat_focus_time)), 0.0, 1.0)
+	var head_g : Vector2 = snake.to_global(snake.points[0])
+
+	# ---- 1. 自己：身体本身已经是白玻璃了，这里只补一根红色热流线 ----
+	# 以前这里还描一圈白轮廓，但实体现在自己就是白线，再描就成双线了。
+	if snake.has_method("get_heat_outline"):
+		var own : float = clampf(0.66 + 0.34 * still, 0.0, 1.0)
+
+		# 自己身上的红线：顺着脊背一根，永远比敌人的白线更实一点
+		var spine := PackedVector2Array()
+		spine.resize(snake.points.size())
+		for i in snake.points.size():
+			spine[i] = xf * snake.to_global(snake.points[i])
+		_stroke_outline(spine, COL_HEAT_SELF, 0.20 + 0.26 * own, 1.3 + 0.4 * own)
+
+		var hp : Vector2 = xf * head_g
+		draw_circle(hp, maxf(2.0, zoom * 1.1), Color(COL_HEAT_SELF.r, COL_HEAT_SELF.g, COL_HEAT_SELF.b,
+			0.18 + 0.24 * own))
+
+	# ---- 2. 敌人：白色描边，外面的黑越深，它就越像一团冷下来的白线
+	for bug in get_tree().get_nodes_in_group("centipede"):
+		if not is_instance_valid(bug) or not (bug is Node2D):
+			continue
+		if bug.has_method("is_dead") and bool(bug.call("is_dead")):
+			continue
+		var pts = bug.get("points")
+		if pts == null or pts.size() < 2:
+			continue
+
+		var bh : Vector2 = bug.to_global(pts[0])
+		var dist : float = head_g.distance_to(bh)
+		# 太远就彻底凉透了，看不见。
+		var near : float = 1.0 - smoothstep(heat_r * 0.5, heat_r, dist)
+		if near <= 0.01:
+			continue
+
+		var clarity : float = still
+		if bug == _focus_bug:
+			clarity = maxf(still, focus)
+		clarity = clampf(clarity, 0.0, 1.0)
+
+		# 若隐若现：模糊的时候一明一灭，清楚的时候几乎不再闪。
+		var seed : float = float(bug.get_instance_id() % 31)
+		var flick : float = 0.5 + 0.5 * sin(now * (4.5 - 2.6 * clarity) + seed)
+		var alpha : float = lerpf(0.05 + 0.14 * flick, 0.62 + 0.34 * flick, clarity) * near
+		# 越模糊越抖：慢下来以后轮廓才真正贴合肢体。
+		var jit : float = (1.0 - clarity) * 8.0
+		var col : Color = COL_HEAT_EDGE.lerp(Color(1.0, 0.97, 0.92), clarity)
+
+		# 2a. 整条虫的外轮廓（透明填充，只有边）
+		var outline = bug.get("heat_outline")
+		if outline != null and outline.size() > 2:
+			var op := PackedVector2Array()
+			op.resize(outline.size())
+			for i in outline.size():
+				op[i] = xf * bug.to_global(outline[i]) + _jitter(i, now, jit)
+			_stroke_outline(op, col, alpha, 1.5 + 0.9 * clarity)
+
+		# 2b. 每条腿（根 / 膝 / 尖），跟真正画出来的肢体重合
+		var chains = bug.get("heat_leg_chains")
+		var slots : int = int(bug.get("heat_leg_slots"))
+		if chains != null and slots > 0:
+			# 模糊的时候抽掉一部分腿，看起来是断断续续的残像。
+			var step : int = 1
+			if clarity < 0.18:
+				step = 3
+			elif clarity < 0.45:
+				step = 2
+
+			var lw : float = 1.2 + 0.7 * clarity
+			for k in slots:
+				if step > 1 and k % step != 0:
+					continue
+				var i0 : int = k * 3
+				if i0 + 2 >= chains.size():
+					break
+				var b : Vector2 = xf * bug.to_global(chains[i0]) + _jitter(i0, now, jit)
+				var kn : Vector2 = xf * bug.to_global(chains[i0 + 1]) + _jitter(i0 + 1, now, jit)
+				var ft : Vector2 = xf * bug.to_global(chains[i0 + 2]) + _jitter(i0 + 2, now, jit)
+				draw_line(b, kn, Color(col.r, col.g, col.b, alpha * 0.8), lw, true)
+				draw_line(kn, ft, Color(col.r, col.g, col.b, alpha), lw * 0.85, true)
+
+		# 2c. 头部热源最集中，糊的时候先剩这一团
+		var head_px : Vector2 = xf * bh
+		draw_circle(head_px, maxf(1.8, zoom * (1.0 + 1.4 * clarity)),
+			Color(col.r, col.g, col.b, alpha * (0.4 + 0.4 * clarity)))
+
+## 描边：先铺一圈更宽更淡的光晕，再压一条细实线。中间一直是空的。
+func _stroke_outline(pts: PackedVector2Array, col: Color, alpha: float, width: float) -> void:
+	if pts.size() < 3:
+		return
+	draw_polyline(pts, Color(col.r, col.g, col.b, alpha * 0.16), width + 5.0, true)
+	draw_polyline(pts, Color(col.r, col.g, col.b, alpha), width, true)
+
+func _jitter(i: int, now: float, amp: float) -> Vector2:
+	if amp <= 0.01:
+		return Vector2.ZERO
+	return Vector2(sin(now * 11.0 + float(i) * 1.7), cos(now * 9.3 + float(i) * 2.1)) * amp
+
+# ------------------------------- 锁定目标 -------------------------------
+func _draw_lock(head: Vector2, zoom: float, xf: Transform2D) -> void:
+	var ready : bool = float(snake.venom) >= float(snake.venom_cost)
+	var main : Color = COL_READY if ready else COL_DRY
+	var tp : Vector2 = xf * Vector2(snake.lock_point)
+
+	var now : float = Time.get_ticks_msec() * 0.001
+	# 锁定圈刚出现时从 2.4 倍收到 1 倍，像"砰"一下扣上去。
+	var age : float = clampf(now - _lock_born, 0.0, 0.22)
+	var pop : float = lerpf(2.4, 1.0, ease(age / 0.22, 0.35))
+	var r : float = maxf(20.0, zoom * 11.0) * pop
+
+	# 1. 蛇头到目标的牵引线：起点实、靠目标虚，像根毒丝。
+	var seg : int = 24
+	for i in seg:
+		if i % 2 == 1:
+			continue
+		var f0 : float = float(i) / float(seg)
+		var f1 : float = float(i + 1) / float(seg)
+		var la : float = lerpf(0.85, 0.30, f0)
+		draw_line(head.lerp(tp, f0), head.lerp(tp, f1),
+			Color(0.02, 0.02, 0.02, la * 0.55), 4.4, true)
+		draw_line(head.lerp(tp, f0), head.lerp(tp, f1),
+			Color(main.r, main.g, main.b, la), 2.2, true)
+
+	# 2. 先铺一圈暗底，浅色蜈蚣背上也读得清。
+	draw_arc(tp, r, 0.0, TAU, 48, Color(0.03, 0.03, 0.02, 0.45), 7.0, true)
+	draw_arc(tp, r * 0.62, 0.0, TAU, 36, Color(0.03, 0.03, 0.02, 0.30), 5.0, true)
+
+	# 3. 目标处的锁定环：外环四段缺口 + 反向内环，都在慢慢转。
+	var spin : float = now * 1.7
+	for k in 4:
+		var a0 : float = spin + float(k) * TAU * 0.25
+		draw_arc(tp, r, a0, a0 + 1.02, 20, Color(main.r, main.g, main.b, 0.95), 3.2, true)
+		var b0 : float = -spin * 1.35 + float(k) * TAU * 0.25
+		draw_arc(tp, r * 0.62, b0, b0 + 0.78, 14, Color(1.0, 1.0, 1.0, 0.55), 2.0, true)
+
+	# 4. 四角括号，锁得更"硬"。
+	var g : float = r * 1.58
+	var arm : float = r * 0.5
+	var bc := Color(main.r, main.g, main.b, 0.95)
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			var corner : Vector2 = tp + Vector2(g * sx, g * sy)
+			draw_line(corner, corner - Vector2(arm * sx, 0.0), Color(0.02, 0.02, 0.02, 0.5), 5.2, true)
+			draw_line(corner, corner - Vector2(0.0, arm * sy), Color(0.02, 0.02, 0.02, 0.5), 5.2, true)
+			draw_line(corner, corner - Vector2(arm * sx, 0.0), bc, 2.6, true)
+			draw_line(corner, corner - Vector2(0.0, arm * sy), bc, 2.6, true)
+
+	# 5. 中心锚点
+	draw_circle(tp, maxf(2.6, zoom * 1.1), Color(main.r, main.g, main.b, 0.95))
+
+	# 6. 伤害预览，浮在圈上方，先垫暗描边
+	var inject : float = clampf(float(snake.venom) / maxf(1.0, float(snake.venom_cost)), 0.0, 1.0)
+	var dmg : String = "%d" % int(round(float(snake.get_attack()) * lerpf(0.55, 1.0, inject)))
+	var dpos : Vector2 = tp + Vector2(-16.0, -g - 12.0)
+	draw_string(FONT, dpos + Vector2(2.0, 2.0), dmg,
+		HORIZONTAL_ALIGNMENT_CENTER, 32.0, 20, Color(0.02, 0.02, 0.02, 0.75))
+	draw_string(FONT, dpos, dmg,
+		HORIZONTAL_ALIGNMENT_CENTER, 32.0, 20, Color(main.r, main.g, main.b, 0.95))
+
+	# 7. 蛇头这端：一个小准星，标出咬击起点。
+	draw_circle(head, 3.2, Color(main.r, main.g, main.b, 0.9))
+	draw_arc(head, r * 0.42, 0.0, TAU, 20, Color(main.r, main.g, main.b, 0.35), 1.6, true)
+
+# ------------------------------- 没有目标 -------------------------------
+func _draw_idle(head: Vector2, zoom: float) -> void:
+	var now : float = Time.get_ticks_msec() * 0.001
+	var pulse : float = 0.5 + 0.5 * sin(now * 4.0)
+	var r : float = maxf(18.0, zoom * 8.0)
+	var a : float = 0.45 + 0.30 * pulse
+	var c := Color(COL_IDLE.r, COL_IDLE.g, COL_IDLE.b, a)
+	var dark := Color(0.03, 0.03, 0.02, a * 0.45)
+
+	# 深浅两层描边：地面亮的时候暗线托底，画面全黑的时候亮线浮出来。
+	draw_arc(head, r, 0.0, TAU, 32, dark, 5.0, true)
+	draw_arc(head, r, 0.0, TAU, 32, c, 2.2, true)
+	draw_arc(head, r * 0.5, 0.0, TAU, 22, dark, 3.6, true)
+	draw_arc(head, r * 0.5, 0.0, TAU, 22, Color(c.r, c.g, c.b, c.a * 0.7), 1.6, true)
+
+	# 四个小刻线，像个空准星。
+	for k in 4:
+		var ang : float = float(k) * TAU * 0.25 + now * 0.7
+		draw_line(head + Vector2.from_angle(ang) * (r * 0.5),
+			head + Vector2.from_angle(ang) * r, dark, 3.6, true)
+		draw_line(head + Vector2.from_angle(ang) * (r * 0.5),
+			head + Vector2.from_angle(ang) * r, c, 1.8, true)
+
+	var txt := "NO TARGET"
+	var tpos : Vector2 = head + Vector2(-44.0, -r - 14.0)
+	draw_string(FONT, tpos + Vector2(2.0, 2.0), txt,
+		HORIZONTAL_ALIGNMENT_CENTER, 88.0, 17, Color(0.02, 0.02, 0.02, a * 0.85))
+	draw_string(FONT, tpos, txt, HORIZONTAL_ALIGNMENT_CENTER, 88.0, 17, c)
+
+# ------------------------------- 挥咬特效 -------------------------------
+func _draw_fx(head: Vector2, zoom: float, xf: Transform2D) -> void:
+	var p : float = 1.0 - float(snake.bite_fx_time) / FX_TIME
+	var reach : float = float(snake.bite_range) * zoom
+	var half : float = deg_to_rad(float(snake.bite_arc_deg)) * 0.5
+	var dir : float = float(snake.bite_fx_dir)
+	var hit : bool = bool(snake.bite_fx_hit)
+	var point : Vector2 = xf * Vector2(snake.bite_fx_point)
+
+	# 1. 挥过去的弧光：从左侧扫到右侧，很快，收得也快。
+	var sweep_t : float = clampf(p / 0.35, 0.0, 1.0)
+	var a_now : float = lerpf(dir - half, dir + half, sweep_t)
+	var sweep_alpha : float = (1.0 - sweep_t) * 0.6
+	var sweep := _arc_points(head, reach * 0.92, dir - half, a_now, 24)
+	for i in range(sweep.size() - 1):
+		var k : float = float(i) / float(maxi(1, sweep.size() - 2))
+		draw_line(sweep[i], sweep[i + 1],
+			Color(1.0, 0.96, 0.78, sweep_alpha * (0.3 + 0.7 * k)), 3.0, true)
+
+	# 2. 命中 / 落空
+	if hit:
+		var t : float = clampf(p / 0.55, 0.0, 1.0)
+		var rr : float = lerpf(4.0, maxf(22.0, 12.0 * zoom), t)
+		var ra : float = (1.0 - t) * 0.9
+		draw_circle(point, 3.0 * zoom, Color(1.0, 0.55, 0.30, ra))
+		draw_arc(point, rr, 0.0, TAU, 30, Color(1.0, 0.70, 0.32, ra), 2.6, true)
+		draw_arc(point, rr * 0.6, 0.0, TAU, 26, Color(0.80, 1.0, 0.45, ra * 0.8), 1.8, true)
+
+		# 伤害数字上浮
+		var rise : float = p * 46.0
+		var na : float = 1.0 - smoothstep(0.6, 1.0, p)
+		var txt : String = "%d" % int(round(float(snake.bite_fx_damage)))
+		var dpos : Vector2 = point + Vector2(-10.0, -30.0 - rise)
+		# 先垫一层暗色描边，落在亮背景上也读得清。
+		draw_string(FONT, dpos + Vector2(2, 2), txt,
+			HORIZONTAL_ALIGNMENT_CENTER, 40.0, 30, Color(0.05, 0.03, 0.02, na * 0.8))
+		draw_string(FONT, dpos, txt,
+			HORIZONTAL_ALIGNMENT_CENTER, 40.0, 30, Color(1.0, 0.86, 0.42, na))
+		if float(snake.bite_fx_poison) > 0.05:
+			draw_string(FONT, point + Vector2(-10.0, -12.0 - rise * 0.8), "VENOM",
+				HORIZONTAL_ALIGNMENT_CENTER, 52.0, 13, Color(0.66, 1.0, 0.45, na * 0.9))
+	else:
+		# 空咬：射程内没目标，咬了个空，画个灰叉。
+		var ca : float = 1.0 - smoothstep(0.4, 1.0, p)
+		var s : float = 12.0
+		var c := Color(COL_MISS.r, COL_MISS.g, COL_MISS.b, ca * 0.9)
+		draw_line(point + Vector2(-s, -s), point + Vector2(s, s), Color(0.02, 0.02, 0.02, ca * 0.5), 5.0, true)
+		draw_line(point + Vector2(-s, s), point + Vector2(s, -s), Color(0.02, 0.02, 0.02, ca * 0.5), 5.0, true)
+		draw_line(point + Vector2(-s, -s), point + Vector2(s, s), c, 3.0, true)
+		draw_line(point + Vector2(-s, s), point + Vector2(s, -s), c, 3.0, true)
+		var txt := "NO TARGET"
+		draw_string(FONT, point + Vector2(-44.0, -22.0) + Vector2(2, 2), txt,
+			HORIZONTAL_ALIGNMENT_CENTER, 88.0, 16, Color(0.02, 0.02, 0.02, ca * 0.8))
+		draw_string(FONT, point + Vector2(-44.0, -22.0), txt,
+			HORIZONTAL_ALIGNMENT_CENTER, 88.0, 16, c)
+
+# ------------------------------- 几何工具 -------------------------------
+func _arc_points(center: Vector2, radius: float, a0: float, a1: float, steps: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in steps + 1:
+		var a : float = lerpf(a0, a1, float(i) / float(steps))
+		pts.append(center + Vector2.from_angle(a) * radius)
+	return pts

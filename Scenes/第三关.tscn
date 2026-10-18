@@ -1,0 +1,401 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/第三关.gd" id="1_level"]
+[ext_resource type="Texture2D" uid="uid://oiajaqb0o568" path="res://Assets/背景/陶罐背景.jpg" id="2_bg"]
+[ext_resource type="PackedScene" path="res://Scenes/暂停菜单.tscn" id="3_pause"]
+[ext_resource type="Script" uid="uid://k2qfqenlhtw0" path="res://Scripts/ArenaVignette.gd" id="4_vig"]
+[ext_resource type="Script" path="res://Scripts/地穴地表.gd" id="5_marks"]
+[ext_resource type="Script" path="res://Scripts/生态.gd" id="6_eco"]
+[ext_resource type="PackedScene" path="res://ant/Ant.tscn" id="7_ant"]
+[ext_resource type="PackedScene" path="res://ant/SoldierAnt.tscn" id="8_soldier"]
+[ext_resource type="PackedScene" path="res://snake/Snake.tscn" id="10_snake"]
+[ext_resource type="PackedScene" path="res://toad/Toad.tscn" id="11_toad"]
+[ext_resource type="PackedScene" path="res://centipede/MultiSpineCentipede.tscn" id="12_centi"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_e4k12"]
+light_mode = 1
+
+[sub_resource type="RectangleShape2D" id="WallArc"]
+size = Vector2(111.7, 19.6)
+
+[node name="第三关" type="Node2D"]
+script = ExtResource("1_level")
+
+[node name="环境光" type="CanvasModulate" parent="."]
+color = Color(0.62, 0.62, 0.62, 1)
+
+[node name="背景" type="Sprite2D" parent="."]
+texture_filter = 2
+position = Vector2(2500, 2500)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("2_bg")
+
+[node name="陶罐内壁" type="Node2D" parent="."]
+light_mask = 0
+material = SubResource("CanvasItemMaterial_e4k12")
+script = ExtResource("4_vig")
+fade_width = 48.0
+wall_shade = 0.0
+inner_tint = Color(0, 0, 0, 1)
+
+[node name="地穴地表" type="Node2D" parent="."]
+script = ExtResource("5_marks")
+nest_pos = Vector2(2500, 2500)
+hole_radius = 26.0
+
+[node name="空气墙" type="Node2D" parent="."]
+
+[node name="圆形墙" type="StaticBody2D" parent="空气墙"]
+
+[node name="墙01" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1266749829]
+position = Vector2(3010, 2500)
+rotation = 1.5707963
+shape = SubResource("WallArc")
+
+[node name="墙02" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=2041935007]
+position = Vector2(3002.25, 2588.56)
+rotation = 1.7453293
+shape = SubResource("WallArc")
+
+[node name="墙03" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=268453158]
+position = Vector2(2979.24, 2674.43)
+rotation = 1.9198622
+shape = SubResource("WallArc")
+
+[node name="墙04" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1206371459]
+position = Vector2(2941.67, 2755)
+rotation = 2.0943952
+shape = SubResource("WallArc")
+
+[node name="墙05" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1774132261]
+position = Vector2(2890.68, 2827.82)
+rotation = 2.268928
+shape = SubResource("WallArc")
+
+[node name="墙06" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=2007962535]
+position = Vector2(2827.82, 2890.68)
+rotation = 2.443461
+shape = SubResource("WallArc")
+
+[node name="墙07" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=964328299]
+position = Vector2(2755, 2941.67)
+rotation = 2.6179938
+shape = SubResource("WallArc")
+
+[node name="墙08" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=13202856]
+position = Vector2(2674.43, 2979.24)
+rotation = 2.7925267
+shape = SubResource("WallArc")
+
+[node name="墙09" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1343853972]
+position = Vector2(2588.56, 3002.25)
+rotation = 2.9670596
+shape = SubResource("WallArc")
+
+[node name="墙10" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1231481050]
+position = Vector2(2500, 3010)
+rotation = 3.1415927
+shape = SubResource("WallArc")
+
+[node name="墙11" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1722395243]
+position = Vector2(2411.44, 3002.25)
+rotation = 3.3161256
+shape = SubResource("WallArc")
+
+[node name="墙12" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=2074245777]
+position = Vector2(2325.57, 2979.24)
+rotation = 3.4906585
+shape = SubResource("WallArc")
+
+[node name="墙13" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=618444425]
+position = Vector2(2245, 2941.67)
+rotation = 3.6651914
+shape = SubResource("WallArc")
+
+[node name="墙14" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1482062189]
+position = Vector2(2172.18, 2890.68)
+rotation = 3.8397243
+shape = SubResource("WallArc")
+
+[node name="墙15" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=372433333]
+position = Vector2(2109.32, 2827.82)
+rotation = 4.0142574
+shape = SubResource("WallArc")
+
+[node name="墙16" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1515424110]
+position = Vector2(2058.33, 2755)
+rotation = 4.1887903
+shape = SubResource("WallArc")
+
+[node name="墙17" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1243877177]
+position = Vector2(2020.76, 2674.43)
+rotation = 4.363323
+shape = SubResource("WallArc")
+
+[node name="墙18" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=2059441129]
+position = Vector2(1997.75, 2588.56)
+rotation = 4.537856
+shape = SubResource("WallArc")
+
+[node name="墙19" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1331045587]
+position = Vector2(1990, 2500)
+rotation = 4.712389
+shape = SubResource("WallArc")
+
+[node name="墙20" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=541501193]
+position = Vector2(1997.75, 2411.44)
+rotation = 4.886922
+shape = SubResource("WallArc")
+
+[node name="墙21" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1264318670]
+position = Vector2(2020.76, 2325.57)
+rotation = 5.061455
+shape = SubResource("WallArc")
+
+[node name="墙22" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=15545190]
+position = Vector2(2058.33, 2245)
+rotation = 5.2359877
+shape = SubResource("WallArc")
+
+[node name="墙23" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=877251071]
+position = Vector2(2109.32, 2172.18)
+rotation = 5.4105206
+shape = SubResource("WallArc")
+
+[node name="墙24" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=670666869]
+position = Vector2(2172.18, 2109.32)
+rotation = 5.5850534
+shape = SubResource("WallArc")
+
+[node name="墙25" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1599610875]
+position = Vector2(2245, 2058.33)
+rotation = 5.7595863
+shape = SubResource("WallArc")
+
+[node name="墙26" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1013277369]
+position = Vector2(2325.57, 2020.76)
+rotation = 5.9341197
+shape = SubResource("WallArc")
+
+[node name="墙27" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=72949778]
+position = Vector2(2411.44, 1997.75)
+rotation = 6.1086526
+shape = SubResource("WallArc")
+
+[node name="墙28" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=512936621]
+position = Vector2(2500, 1990)
+rotation = 6.2831855
+shape = SubResource("WallArc")
+
+[node name="墙29" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1190110257]
+position = Vector2(2588.56, 1997.75)
+rotation = 6.4577184
+shape = SubResource("WallArc")
+
+[node name="墙30" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1699440225]
+position = Vector2(2674.43, 2020.76)
+rotation = 6.6322513
+shape = SubResource("WallArc")
+
+[node name="墙31" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=687269179]
+position = Vector2(2755, 2058.33)
+rotation = 6.806784
+shape = SubResource("WallArc")
+
+[node name="墙32" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=410113957]
+position = Vector2(2827.82, 2109.32)
+rotation = 6.981317
+shape = SubResource("WallArc")
+
+[node name="墙33" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1139483835]
+position = Vector2(2890.68, 2172.18)
+rotation = 7.15585
+shape = SubResource("WallArc")
+
+[node name="墙34" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1365903686]
+position = Vector2(2941.67, 2245)
+rotation = 7.330383
+shape = SubResource("WallArc")
+
+[node name="墙35" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=1956408594]
+position = Vector2(2979.24, 2325.57)
+rotation = 7.5049157
+shape = SubResource("WallArc")
+
+[node name="墙36" type="CollisionShape2D" parent="空气墙/圆形墙" unique_id=907568153]
+position = Vector2(3002.25, 2411.44)
+rotation = 7.6794486
+shape = SubResource("WallArc")
+
+
+[node name="玩家工蚁" parent="." instance=ExtResource("7_ant")]
+position = Vector2(2500, 2600)
+show_editor_gizmos = false
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+speed = 96.0
+ghost_line = Color(1, 0.82, 0.36, 1)
+ghost_inner = Color(1, 0.74, 0.28, 0.55)
+
+[node name="工蚁1" parent="." instance=ExtResource("7_ant")]
+position = Vector2(2440, 2560)
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="工蚁2" parent="." instance=ExtResource("7_ant")]
+position = Vector2(2560, 2565)
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="工蚁3" parent="." instance=ExtResource("7_ant")]
+position = Vector2(2455, 2640)
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="工蚁4" parent="." instance=ExtResource("7_ant")]
+position = Vector2(2548, 2648)
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="工蚁5" parent="." instance=ExtResource("7_ant")]
+position = Vector2(2500, 2570)
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="兵蚁1" parent="." instance=ExtResource("8_soldier")]
+position = Vector2(2400, 2500)
+
+[node name="兵蚁2" parent="." instance=ExtResource("8_soldier")]
+position = Vector2(2600, 2510)
+
+[node name="兵蚁3" parent="." instance=ExtResource("8_soldier")]
+position = Vector2(2420, 2680)
+
+[node name="兵蚁4" parent="." instance=ExtResource("8_soldier")]
+position = Vector2(2580, 2675)
+
+[node name="兵蚁5" parent="." instance=ExtResource("8_soldier")]
+position = Vector2(2500, 2450)
+
+[node name="蜈蚣1" parent="." instance=ExtResource("12_centi")]
+position = Vector2(2280, 2520)
+segment_spacing = 14.8
+body_radius = 6.6
+plate_line_boost = 1.0
+ghost_line = Color(1, 1, 1, 0.7)
+ghost_inner = Color(1, 1, 1, 0.28)
+ghost_line_width = 1.3
+leg_size = 0.55
+leg_reach = 1.75
+antenna_scale = 1.3
+speed = 120.0
+control_mode = 0
+fear_range = 0.0
+max_health = 110.0
+stay_in_viewport = false
+use_play_bounds = true
+bounds_shape = 1
+bounds_center = Vector2(2500, 2500)
+bounds_radius = 500.0
+show_editor_gizmos = false
+
+[node name="蜈蚣2" parent="." instance=ExtResource("12_centi")]
+position = Vector2(2720, 2460)
+segment_spacing = 14.8
+body_radius = 6.6
+plate_line_boost = 1.0
+ghost_line = Color(1, 1, 1, 0.7)
+ghost_inner = Color(1, 1, 1, 0.28)
+ghost_line_width = 1.3
+leg_size = 0.55
+leg_reach = 1.75
+antenna_scale = 1.3
+speed = 120.0
+control_mode = 0
+fear_range = 0.0
+max_health = 110.0
+stay_in_viewport = false
+use_play_bounds = true
+bounds_shape = 1
+bounds_center = Vector2(2500, 2500)
+bounds_radius = 500.0
+show_editor_gizmos = false
+
+[node name="蜈蚣3" parent="." instance=ExtResource("12_centi")]
+position = Vector2(2500, 2760)
+segment_spacing = 14.8
+body_radius = 6.6
+plate_line_boost = 1.0
+ghost_line = Color(1, 1, 1, 0.7)
+ghost_inner = Color(1, 1, 1, 0.28)
+ghost_line_width = 1.3
+leg_size = 0.55
+leg_reach = 1.75
+antenna_scale = 1.3
+speed = 120.0
+control_mode = 0
+fear_range = 0.0
+max_health = 110.0
+stay_in_viewport = false
+use_play_bounds = true
+bounds_shape = 1
+bounds_center = Vector2(2500, 2500)
+bounds_radius = 500.0
+show_editor_gizmos = false
+
+[node name="蛇1" parent="." instance=ExtResource("10_snake")]
+position = Vector2(2180, 2350)
+ghost_line = Color(1, 1, 1, 0.5)
+ghost_inner = Color(1, 1, 1, 0.16)
+head_fill = Color(1, 1, 1, 0.55)
+ghost_line_width = 1.1
+stay_in_viewport = false
+control_mode = 3
+speed = 88.0
+show_hud = false
+allow_stealth = false
+use_play_bounds = true
+bounds_shape = 1
+bounds_center = Vector2(2500, 2500)
+bounds_radius = 500.0
+
+[node name="蛇2" parent="." instance=ExtResource("10_snake")]
+position = Vector2(2830, 2650)
+ghost_line = Color(1, 1, 1, 0.5)
+ghost_inner = Color(1, 1, 1, 0.16)
+head_fill = Color(1, 1, 1, 0.55)
+ghost_line_width = 1.1
+stay_in_viewport = false
+control_mode = 3
+speed = 88.0
+show_hud = false
+allow_stealth = false
+use_play_bounds = true
+bounds_shape = 1
+bounds_center = Vector2(2500, 2500)
+bounds_radius = 500.0
+
+[node name="蟾蜍1" parent="." instance=ExtResource("11_toad")]
+position = Vector2(2360, 2220)
+
+[node name="蟾蜍2" parent="." instance=ExtResource("11_toad")]
+position = Vector2(2660, 2200)
+
+[node name="蟾蜍3" parent="." instance=ExtResource("11_toad")]
+position = Vector2(2520, 2820)
+
+[node name="生态" type="Node" parent="."]
+script = ExtResource("6_eco")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(2500, 2600)
+zoom = Vector2(2.5, 2.5)
+
+[node name="PauseMenu" parent="." instance=ExtResource("3_pause")]
+hint_text = "WASD MOVE    SPACE THE NEST    ESC PAUSE"

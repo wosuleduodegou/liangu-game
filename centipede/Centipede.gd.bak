@@ -1,0 +1,702 @@
+@tool
+extends Node2D
+
+## 少棘蜈蚣（Scolopendra mutilans）的程序化角色。
+##
+## 没有任何帧动画资源，全部在 _draw() 里现画：
+##   * 身体是一串 follow-the-leader 的骨节点，转弯时自然留下弯曲轨迹
+##   * 每一节画一片背板（tergite），两侧带纵向黑带，后缘压前缘，像叠瓦
+##   * 20 对步足，相位沿身体依次滞后（metachronal wave），左右反相
+##   * 每对足用两段 IK 求膝点；摆动相会把腿收短一点，看起来是抬起来了
+##   * 头部有头板、四对单眼、一对颚足和一对多节触角
+##   * 末对足变形成曳步足（ultimate legs），比其它足长一倍，向后拖着
+##
+## 尺寸基准沿用项目约定：1 米 = 500px。默认体长约 180px，也就是一条
+## 30cm 上下的大个体，方便在小场地里看清足的动作。
+
+# ------------------------------- Identity -------------------------------
+@export_group("Identity")
+
+## 显示名。之后做状态面板 / 图鉴可以直接读它。
+@export var display_name : String = "Scolopendra mutilans"
+
+# ------------------------------- Body shape -------------------------------
+@export_group("Body Shape")
+
+## 背板数量（含头板）。少棘蜈蚣是 21 节、20 对步足。
+@export_range(6, 60, 1) var segment_count : int = 21
+
+## 相邻骨节点的间距，也就是每节的长度。
+@export_range(3.0, 40.0, 0.5, "suffix:px") var segment_spacing : float = 9.0
+
+## 身体半宽（最宽处）。蜈蚣是扁的，这个值同时也决定背板的横向尺寸。
+@export_range(2.0, 30.0, 0.25, "suffix:px") var body_radius : float = 6.0
+
+## 头板相对身体再宽多少。少棘蜈蚣的头板比后面的背板略宽。
+@export_range(0.2, 2.0, 0.01) var head_width_scale : float = 1.18
+
+## 尾端收窄到的比例。0.4 左右像一根锥子。
+@export_range(0.1, 1.0, 0.01) var tail_taper : float = 0.46
+
+## 背板长度相对节距的倍率。大于 1 就会互相压住，像瓦片一样叠。
+@export_range(0.5, 2.0, 0.01) var plate_overlap : float = 1.34
+
+# ------------------------------- Ghost look -------------------------------
+@export_group("Ghost Look")
+
+## 外轮廓线。纯白线，整只虫就靠这一圈读出来。
+@export var ghost_line : Color = Color(1.0, 1.0, 1.0, 0.68)
+
+## 分节线 / 内部结构线，比轮廓暗一档。
+@export var ghost_inner : Color = Color(1.0, 1.0, 1.0, 0.26)
+
+## 轮廓线宽度。
+@export_range(0.4, 5.0, 0.1, "suffix:px") var ghost_line_width : float = 1.3
+
+# ------------------------------- Gait -------------------------------
+@export_group("Gait")
+
+## 每秒的步态循环次数。速度越快看起来越该密，但这里给的是基准值。
+@export_range(0.2, 8.0, 0.05, "suffix:Hz") var gait_freq : float = 5.0
+
+## 相邻两节之间的相位滞后（0~1 是一整个循环）。0.10 时体长内大约有两个波。
+@export_range(0.0, 0.5, 0.005) var gait_lag : float = 0.10
+
+## 一个循环里脚踩在地上的比例。越大越像"一直在推"。
+@export_range(0.3, 0.9, 0.01) var stance_frac : float = 0.62
+
+## 足尖离体侧的横向距离。
+@export_range(4.0, 40.0, 0.5, "suffix:px") var leg_reach : float = 16.0
+
+## 步幅相对"这一帧身体走了多远"的倍率。1.0 时足尖几乎钉在地上。
+@export_range(0.0, 1.5, 0.01) var stride_gain : float = 0.72
+
+## 抬腿时腿收缩的比例。俯视看，腿收短就等于抬起来了。
+@export_range(0.0, 0.6, 0.01) var lift_shrink : float = 0.22
+
+## 触角长度倍率。多棘蜈蚣的触角比少棘长得多。
+@export_range(0.4, 2.5, 0.05) var antenna_scale : float = 1.0
+
+## 末对曳步足的长度倍率。大个体这对足又粗又长。
+@export_range(0.5, 3.0, 0.05) var ultimate_leg_scale : float = 1.0
+
+# ------------------------------- Motion -------------------------------
+@export_group("Motion")
+
+@export_range(10.0, 600.0, 5.0, "suffix:px/s") var speed : float = 105.0
+@export_range(0.5, 30.0, 0.1) var turn_speed : float = 4.5
+## 松手后的减速有多快（每秒油门变化量）。
+@export_range(1.0, 40.0, 0.5) var throttle_response : float = 9.0
+@export_enum("Wander", "Follow Mouse", "Keyboard", "External") var control_mode : int = 2
+## 外部控制时由外部脚本写入的朝向（弧度）。
+@export var external_direction : float = 0.0
+
+# ------------------------------- Vitals -------------------------------
+@export_group("Vitals")
+
+## 生命值。被毒蛇咬到会掉，归零后抽搐一下消失。
+@export_range(1.0, 2000.0, 1.0) var max_health : float = 58.0
+
+## 毒抗：中毒每秒伤害乘以这个系数。大个体更耐毒，可以给小于 1 的值。
+@export_range(0.0, 3.0, 0.05) var poison_resist : float = 1.0
+
+## 死亡后多久淡出消失。
+@export_range(0.2, 5.0, 0.1, "suffix:s") var death_fade : float = 1.5
+
+@export_group("Bounds")
+
+## 不给场地时也把身体留在视口里。
+@export var stay_in_viewport : bool = true
+@export var use_play_bounds : bool = false
+@export_enum("Rectangle", "Circle") var bounds_shape : int = 1
+@export var bounds_center : Vector2 = Vector2(2500, 2500)
+@export_range(64.0, 12000.0, 1.0, "suffix:px") var bounds_radius : float = 500.0
+## 只在 bounds_shape 为 Rectangle 时使用。
+@export var play_bounds : Rect2 = Rect2(0, 0, 1920, 1080)
+
+@export_group("Editor Preview")
+
+@export var show_editor_gizmos : bool = true
+@export var gizmo_color : Color = Color(1.0, 0.62, 0.2, 0.85)
+
+# ------------------------------- Runtime state -------------------------------
+var points : PackedVector2Array = []
+var head_pos : Vector2 = Vector2.ZERO
+var heading : float = 0.0
+var t : float = 0.0
+
+var _throttle : float = 0.0
+var _speed_now : float = 0.0
+var _rng : RandomNumberGenerator = RandomNumberGenerator.new()
+var _editor_sig : String = ""
+## 代谢组件（可选）。饿了会变虚弱，爬得慢。
+var metab = null
+
+## 热成像用：本帧每条腿的折线（本地坐标），每 3 个点一条腿：根 / 膝 / 尖。
+## 由 _draw() 里顺手填好，保证和外层肉眼看得到的肢体严丝合缝。
+var heat_leg_chains : PackedVector2Array = PackedVector2Array()
+var heat_leg_slots : int = 0
+## 热成像用：本帧整条虫的外轮廓（本地坐标，闭合）。画成"透明 + 白描边"。
+var heat_outline : PackedVector2Array = PackedVector2Array()
+
+# ------------------------------ Combat state ------------------------------
+var health : float = 58.0
+## 受击白闪强度 0..1，按时间衰减。
+var _hurt : float = 0.0
+var _poison_time : float = 0.0
+var _poison_dps : float = 0.0
+var _dead : bool = false
+var _death_time : float = 0.0
+## 死亡抽搐用的时间轴。
+var _death_t : float = 0.0
+
+func _ready() -> void:
+	metab = get_node_or_null("Metabolism")
+	health = max_health
+	if Engine.is_editor_hint():
+		_build_preview()
+		return
+	add_to_group("centipede")
+	_rng.randomize()
+	_reset_body()
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		_editor_tick()
+		return
+	if not _dead:
+		t += delta
+	_tick_combat(delta)
+	if _dead:
+		queue_redraw()
+		return
+	if metab:
+		metab.tick(delta)
+	_move_head(delta)
+	_follow_body()
+	queue_redraw()
+
+# =============================== Combat ===============================
+## 被咬 / 中毒掉血。返回实际扣掉的血量。
+## poison 是每秒毒伤，poison_time 是持续时间；毒抗会打折。
+func take_damage(amount: float, from_global: Vector2 = Vector2.ZERO,
+		poison: float = 0.0, poison_time: float = 0.0) -> float:
+	if _dead:
+		return 0.0
+	var dealt : float = minf(health, maxf(0.0, amount))
+	health = maxf(0.0, health - maxf(0.0, amount))
+	_hurt = 1.0
+	if poison > 0.0 and poison_time > 0.0:
+		var pps : float = poison * poison_resist
+		_poison_dps = maxf(_poison_dps, pps)
+		_poison_time = maxf(_poison_time, poison_time)
+	if health <= 0.0:
+		_die()
+	return dealt
+
+func is_dead() -> bool:
+	return _dead
+
+func is_poisoned() -> bool:
+	return _poison_time > 0.0 and not _dead
+
+func health_ratio() -> float:
+	return clampf(health / maxf(1.0, max_health), 0.0, 1.0)
+
+func _die() -> void:
+	if _dead:
+		return
+	_dead = true
+	_death_time = death_fade
+	_death_t = 0.0
+	_poison_time = 0.0
+
+func _tick_combat(delta: float) -> void:
+	if _hurt > 0.0:
+		_hurt = maxf(0.0, _hurt - delta * 5.0)
+
+	if _dead:
+		_death_t += delta
+		_death_time = maxf(0.0, _death_time - delta)
+		modulate.a = clampf(_death_time / maxf(0.01, death_fade), 0.0, 1.0)
+		if _death_time <= 0.0:
+			queue_free()
+		return
+
+	if _poison_time > 0.0:
+		var tick : float = minf(delta, _poison_time)
+		_poison_time = maxf(0.0, _poison_time - delta)
+		health = maxf(0.0, health - _poison_dps * tick)
+		if _poison_time <= 0.0:
+			_poison_dps = 0.0
+		if health <= 0.0:
+			_die()
+
+# =============================== Movement ===============================
+func _move_head(delta: float) -> void:
+	var ease : float = clampf(turn_speed * delta, 0.0, 1.0)
+
+	match control_mode:
+		0: # Wander
+			_throttle = 1.0
+			heading += _rng.randf_range(-1.0, 1.0) * 1.1 * delta
+		1: # Follow mouse
+			_throttle = 1.0
+			var hp : Vector2 = to_global(points[0])
+			var tgt : Vector2 = get_global_mouse_position()
+			if tgt.distance_to(hp) > 3.0:
+				heading = lerp_angle(heading, (tgt - hp).angle(), ease)
+		2: # Keyboard
+			var d : Vector2 = _read_keyboard()
+			var moving : bool = d.length() > 0.1
+			if moving:
+				heading = lerp_angle(heading, d.angle(), ease)
+			_throttle = move_toward(_throttle, 1.0 if moving else 0.0, throttle_response * delta)
+		3: # External
+			_throttle = 1.0
+			heading = lerp_angle(heading, external_direction, ease)
+
+	_speed_now = speed * _throttle
+	if metab:
+		_speed_now *= float(metab.speed_mult())
+	if control_mode == 2 and Input.is_key_pressed(KEY_SHIFT):
+		_speed_now *= 1.75
+
+	head_pos += Vector2.from_angle(heading) * _speed_now * delta
+
+	if control_mode != 3 and (use_play_bounds or stay_in_viewport):
+		_bounce_off_walls()
+
+	points[0] = head_pos
+
+## 圆形场地用镜面反射，矩形用逐轴翻转。和蛇那套保持一致。
+func _bounce_off_walls() -> void:
+	var wp : Vector2 = to_global(head_pos)
+
+	if use_play_bounds and bounds_shape == 1:
+		var rad : float = maxf(16.0, bounds_radius)
+		var off : Vector2 = wp - bounds_center
+		if off.length() > rad:
+			var n : Vector2 = off.normalized()
+			wp = bounds_center + n * rad
+			var d : Vector2 = Vector2.from_angle(heading)
+			d -= 2.0 * d.dot(n) * n
+			heading = d.angle()
+			head_pos = to_local(wp)
+		return
+
+	var rect : Rect2 = play_bounds if use_play_bounds else get_viewport_rect()
+	var bounced : bool = false
+	if wp.x < rect.position.x or wp.x > rect.end.x:
+		heading = PI - heading
+		wp.x = clampf(wp.x, rect.position.x, rect.end.x)
+		bounced = true
+	if wp.y < rect.position.y or wp.y > rect.end.y:
+		heading = -heading
+		wp.y = clampf(wp.y, rect.position.y, rect.end.y)
+		bounced = true
+	if bounced:
+		head_pos = to_local(wp)
+
+## 像链条一样，每一节被前一节拉着走。这是身体弯曲的全部来源。
+func _follow_body() -> void:
+	for i in range(1, points.size()):
+		var to_prev : Vector2 = points[i] - points[i - 1]
+		var dist : float = to_prev.length()
+		if dist < 0.0001:
+			to_prev = Vector2.from_angle(heading)
+			dist = 1.0
+		points[i] = points[i - 1] + (to_prev / dist) * segment_spacing
+
+func _read_keyboard() -> Vector2:
+	# 只认 WASD，和蛇保持一致。
+	var v : Vector2 = Vector2.ZERO
+	if Input.is_key_pressed(KEY_A):
+		v.x -= 1.0
+	if Input.is_key_pressed(KEY_D):
+		v.x += 1.0
+	if Input.is_key_pressed(KEY_W):
+		v.y -= 1.0
+	if Input.is_key_pressed(KEY_S):
+		v.y += 1.0
+	return v.normalized()
+
+## 沿当前朝向铺直，只在开局和编辑器预览里用。
+func _reset_body() -> void:
+	points.resize(segment_count)
+	head_pos = Vector2.ZERO
+	heading = 0.0
+	for i in segment_count:
+		points[i] = -Vector2.from_angle(heading) * segment_spacing * float(i)
+
+## 按指定朝向重新铺直身体。关卡开局摆位时用。
+func reset_body_heading(dir: float) -> void:
+	_reset_body()
+	heading = dir
+	for i in points.size():
+		points[i] = -Vector2.from_angle(dir) * segment_spacing * float(i)
+
+func _build_preview() -> void:
+	points.resize(segment_count)
+	var span : float = float(maxi(1, segment_count - 1)) * segment_spacing
+	for i in segment_count:
+		points[i] = Vector2(
+			-span * 0.5 + float(i) * segment_spacing,
+			sin(float(i) * 0.22) * body_radius * 0.55)
+	head_pos = points[0]
+	heading = 0.0
+	t = 0.0
+
+func _editor_tick() -> void:
+	var sig : String = "%d|%.2f|%.2f|%.2f|%.2f|%.2f|%s|%.2f|%d" % [
+		segment_count, segment_spacing, body_radius, head_width_scale,
+		tail_taper, plate_overlap, ghost_line,
+		ghost_line_width, 1 if show_editor_gizmos else 0,
+	]
+	if sig == _editor_sig and points.size() == segment_count:
+		return
+	_editor_sig = sig
+	_build_preview()
+	queue_redraw()
+
+# =============================== Light ===============================
+## 白线是体表：黑暗里看不见，只在该受光的地方出现。
+## 光源就是蛇头周围那圈视野（SnakeVision 每帧写进 Snake 的静态量）。
+## 光圈外整只虫只剩 AimOverlay 画的骨骼红线。
+func _lit(p: Vector2) -> float:
+	return Snake.light_at(to_global(p))
+
+func _wcol(p: Vector2, a: float) -> Color:
+	return Color(1.0, 1.0, 1.0, a * _lit(p))
+
+# =============================== Drawing ===============================
+func _draw() -> void:
+	if points.size() < 2:
+		return
+	# 热成像数据每帧重算，和真正画出来的肢体完全同步。
+	heat_leg_chains.clear()
+	heat_leg_slots = 0
+	heat_outline.clear()
+	if _dead:
+		# 临死抽搐：整条虫小幅乱抖并且慢慢歪掉。
+		var k : float = clampf(_death_time / maxf(0.01, death_fade), 0.0, 1.0)
+		var shake : Vector2 = Vector2(sin(_death_t * 47.0), cos(_death_t * 39.0)) * 3.2 * k
+		draw_set_transform(shake, sin(_death_t * 6.0) * 0.09 * k, Vector2.ONE)
+	_draw_legs()
+	_draw_plates()
+	_draw_head()
+	_draw_ultimate_legs()
+	if not Engine.is_editor_hint():
+		_draw_hurt_flash()
+		_draw_health_bar()
+	if Engine.is_editor_hint() and show_editor_gizmos:
+		_draw_gizmos()
+
+## 受击白闪：沿整条身体盖一层半透明白，比改 modulate 稳，不受 HDR 影响。
+func _draw_hurt_flash() -> void:
+	if _hurt <= 0.0 or _dead:
+		return
+	# 沿整条身体压一道白：白玻璃挨打时就该整体"亮"一下，
+	# 不用逐片背板去填（那样叠瓦处会一块深一块浅）。
+	var col : Color = Color(1.0, 1.0, 1.0, clampf(_hurt, 0.0, 1.0) * 0.30)
+	var spine := PackedVector2Array()
+	for i in segment_count:
+		spine.append(points[i])
+	if spine.size() > 1:
+		draw_polyline(spine, col, body_radius * 2.0, true)
+
+## 头顶血条。满血不画，省得场地里全是条。
+func _draw_health_bar() -> void:
+	if _dead or health >= max_health - 0.01:
+		return
+	var c : Vector2 = points[0]
+	var tan : Vector2 = _tangent_at(0)
+	var nrm : Vector2 = tan.orthogonal()
+	var w : float = _width_at(0)
+	# 贴着头的侧边，跟身体一起转，不挡嘴。
+	var centre : Vector2 = c + tan * (w * 0.9) + nrm * (w * 2.3)
+	var size := Vector2(46.0, 5.5)
+	var rect := Rect2(centre - size * 0.5, size)
+	draw_rect(rect.grow(1.4), Color(0.04, 0.035, 0.03, 0.9), true)
+	var r : float = health_ratio()
+	var fill := Color(0.72, 0.22, 0.16).lerp(Color(0.52, 0.70, 0.24), r)
+	draw_rect(Rect2(rect.position, Vector2(size.x * r, size.y)), fill, true)
+	# 中毒时血条外圈泛一圈毒绿，和毒素一个色系。
+	if _poison_time > 0.0:
+		draw_rect(rect.grow(1.4), Color(0.55, 0.92, 0.32, 0.55), false, 1.2)
+
+## 步态核心。每只脚只由一条相位曲线驱动，左右反相、逐节滞后。
+##
+## 相位 0~stance_frac 是"支撑相"：足尖相对身体向后滑，正好抵消身体前进，
+## 所以匀速时看起来足尖是钉在地上的。剩下的是"摆动相"：快速回到前方并抬腿。
+func _draw_legs() -> void:
+	var stance_time : float = stance_frac / maxf(0.2, gait_freq)
+	var stride : float = clampf(_speed_now * stance_time * stride_gain, 0.0, leg_reach * 0.95)
+
+	for i in range(1, segment_count):
+		var c : Vector2 = points[i]
+		var tan : Vector2 = _tangent_at(i)
+		var nrm : Vector2 = tan.orthogonal()
+		var w : float = _width_at(i)
+
+		for side in [-1, 1]:
+			var sf : float = float(side)
+			var ph : float = fposmod(t * gait_freq - float(i) * gait_lag + (0.5 if sf > 0.0 else 0.0), 1.0)
+			var along : float = 0.0
+			var lift : float = 0.0
+
+			if ph < stance_frac:
+				along = lerpf(0.5, -0.5, ph / maxf(0.01, stance_frac))
+			else:
+				var k : float = (ph - stance_frac) / maxf(0.01, 1.0 - stance_frac)
+				along = lerpf(-0.5, 0.5, smoothstep(0.0, 1.0, k))
+				lift = sin(k * PI)
+
+			var base : Vector2 = c + nrm * sf * (w * 1.00)
+			var reach : float = leg_reach * (1.0 - lift_shrink * lift)
+			var swing : float = along * stride
+			# 三段式：股节几乎垂直地向外撑出去，膝节在体侧拐一下，
+			# 胫节再斜着往后落。这个折角是蜈蚣最好认的轮廓，
+			# 用 IK 反算反而看不出来 —— 在俯视尺度上"直着出去"就是一根棍子。
+			var knee : Vector2 = base + nrm * sf * (reach * 0.46) + tan * (swing * 0.35 - reach * 0.12)
+			var foot : Vector2 = base + nrm * sf * reach + tan * (swing - reach * 0.44)
+
+			# 一条折线画完，不分成两段：两段在膝盖处会叠一层 alpha，
+			# 每条腿的关节上都会冒出一个亮点，整片看起来像一串箭头。
+			var lw : float = maxf(0.8, w * 0.19)
+			var la : float = lerpf(0.20, 0.52, lift)
+			draw_polyline(PackedVector2Array([base, knee, foot]),
+				Color(1.0, 1.0, 1.0, la), lw, false)
+			draw_circle(foot, maxf(0.5, lw * 0.55), Color(1.0, 1.0, 1.0, la + 0.18))
+
+			heat_leg_chains.append(base)
+			heat_leg_chains.append(knee)
+			heat_leg_chains.append(foot)
+			heat_leg_slots += 1
+
+func _draw_plates() -> void:
+	var edge_l := PackedVector2Array()
+	var edge_r := PackedVector2Array()
+	for i in segment_count:
+		var c : Vector2 = points[i]
+		var tan : Vector2 = _tangent_at(i)
+		var nrm : Vector2 = tan.orthogonal()
+		var w : float = _width_at(i)
+
+		# 顺手记下最外沿，跟身体同宽
+		edge_l.append(c + nrm * (w * 1.10))
+		edge_r.append(c - nrm * (w * 1.10))
+
+	# 整条身体一圈外轮廓。不填充 —— 逐片填会在叠瓦处叠出深浅不一的小块，
+	# 纯线稿里更没必要：线已经把形状说清楚了。
+	var body := edge_l.duplicate()
+	for i in range(edge_r.size() - 1, -1, -1):
+		body.append(edge_r[i])
+	if body.size() > 2:
+		body.append(body[0])
+		draw_polyline(body, ghost_line, ghost_line_width, true)
+
+	# 闭合外轮廓：左沿正着走、右沿反着回来（热感应也要这份数据）
+	heat_outline = edge_l.duplicate()
+	for i in range(edge_r.size() - 1, -1, -1):
+		heat_outline.append(edge_r[i])
+	if heat_outline.size() > 0:
+		heat_outline.append(edge_l[0])
+
+	# 甲片：不画整片轮廓（那会变成一串椭圆珠子），只画每片的后缘——
+	# 一道横跨身体的弧线。后一片压住前一片，叠瓦的层次就出来了。
+	var n_seg : int = maxi(1, segment_count - 1)
+	for i in range(1, segment_count):
+		var c : Vector2 = points[i]
+		var tan : Vector2 = _tangent_at(i)
+		var nrm : Vector2 = tan.orthogonal()
+		var w : float = _width_at(i)
+		var back : Vector2 = c - tan * (segment_spacing * 0.46)
+		var arc := PackedVector2Array()
+		for k in 9:
+			var u : float = lerpf(-1.0, 1.0, float(k) / 8.0)
+			# 后缘向尾端微微鼓出去
+			arc.append(back + nrm * (u * w * 1.02) - tan * (w * 0.16 * (1.0 - u * u)))
+		var f : float = float(i) / float(n_seg)
+		var a : float = lerpf(0.22, 0.11, smoothstep(0.5, 1.0, f))
+		draw_polyline(arc, Color(ghost_inner.r, ghost_inner.g, ghost_inner.b, a),
+			maxf(0.7, ghost_line_width * 0.85), true)
+
+	# 背脊：一条沿中轴的白线，把身体从"两条边"变成"一个有厚度的筒"
+	var spine := PackedVector2Array()
+	for i in segment_count:
+		spine.append(points[i])
+	if spine.size() > 1:
+		draw_polyline(spine, Color(ghost_inner.r, ghost_inner.g, ghost_inner.b, ghost_inner.a * 0.55),
+			maxf(0.7, ghost_line_width * 0.7), true)
+
+## 头。蜈蚣的头不大，但该有的都在：头板、四对单眼、一对颚足、口器、一对多节触角。
+##
+## 会动的部分：
+##   * 颚足（那对毒爪）平时收在头下慢慢试探开合，挨打时猛地撑开乱抖
+##   * 口器一直在小幅咀嚼
+##   * 触角独立摆动，探空气一样一下一下
+func _draw_head() -> void:
+	var c : Vector2 = points[0]
+	var tan : Vector2 = _tangent_at(0)
+	var nrm : Vector2 = tan.orthogonal()
+	var w : float = _width_at(0)
+
+	# 头板：一块六角形甲片，前缘比后缘宽，正前方略往前鼓
+	var hw : float = w * 1.02
+	var back : Vector2 = c - tan * (w * 0.85)
+	var front : Vector2 = c + tan * (w * 0.86)
+	var plate := PackedVector2Array([
+		back + nrm * (hw * 0.92),
+		front + nrm * hw,
+		front + tan * (w * 0.18) + nrm * (hw * 0.60),
+		front + tan * (w * 0.18) - nrm * (hw * 0.60),
+		front - nrm * hw,
+		back - nrm * (hw * 0.92),
+	])
+	plate.append(plate[0])
+	draw_polyline(plate, ghost_line, ghost_line_width * 1.25, true)
+
+	# 头板和身体之间的那道接缝，不然整条虫连成一坨
+	var seam := PackedVector2Array()
+	for k in 7:
+		var u : float = lerpf(-1.0, 1.0, float(k) / 6.0)
+		seam.append(c - tan * (w * 0.90) + nrm * u * w * 0.90)
+	draw_polyline(seam, Color(ghost_inner.r, ghost_inner.g, ghost_inner.b, ghost_inner.a),
+		maxf(0.7, ghost_line_width * 0.85), true)
+
+	# 四对单眼：亮白小点。线稿不能靠深色画脸 —— 暗场里深色就是背景，
+	# 只有更亮的点才读得出来。
+	for side in [-1, 1]:
+		var sf : float = float(side)
+		for k in 4:
+			var pa : float = 0.58 - float(k) * 0.115
+			var pb : float = 0.34 + float(k) * 0.085 + float(k % 2) * 0.05
+			var p : Vector2 = c + tan * (w * pa) + nrm * sf * (w * pb)
+			draw_circle(p, maxf(0.8, w * 0.095), Color(1, 1, 1, 0.88))
+
+	_draw_forcipules(c, tan, nrm, w)
+	_draw_mouthparts(c, tan, nrm, w)
+	_draw_antennae()
+
+## 颚足 —— 蜈蚣的"毒牙"，其实是特化的第一对步足。
+## 每侧两节：粗的基节往外前方伸出，钩节再折回内侧，扣住猎物就不松。
+func _draw_forcipules(c: Vector2, tan: Vector2, nrm: Vector2, w: float) -> void:
+	# 平时只有缓慢的试探性开合；挨打时（_hurt）猛地撑开并高频发抖。
+	var threat : float = clampf(_hurt, 0.0, 1.0)
+	var flex : float = 0.02 + 0.08 * sin(t * 1.6) + 0.12 * sin(t * 0.7 + 1.3)
+	flex = lerpf(flex, 0.85 + 0.15 * sin(t * 34.0), threat)
+
+	for side in [-1, 1]:
+		var sf : float = float(side)
+		var base : Vector2 = c + tan * (w * 0.26) + nrm * sf * (w * 0.34)
+		var knee : Vector2 = base + (tan * 0.62 + nrm * sf * (0.28 + flex * 0.60)).normalized() * (w * 0.86)
+		var tip : Vector2 = knee + (tan * 0.98 - nrm * sf * (0.50 + flex * 0.55)).normalized() * (w * 0.86)
+		var la : float = 0.50 + 0.34 * threat
+		draw_line(base, knee, Color(1, 1, 1, la), maxf(1.2, w * 0.26), true)
+		draw_line(knee, tip, Color(1, 1, 1, la + 0.20), maxf(1.0, w * 0.17), true)
+		draw_circle(tip, maxf(0.7, w * 0.060), Color(1, 1, 1, 0.80))
+
+## 口器：颚足中间那一小块，一直在轻轻咀嚼。
+func _draw_mouthparts(c: Vector2, tan: Vector2, nrm: Vector2, w: float) -> void:
+	var chew : float = 0.5 + 0.5 * sin(t * 3.1)
+	var root : Vector2 = c + tan * (w * 0.58)
+	for side in [-1, 1]:
+		var sf : float = float(side)
+		var a0 : Vector2 = root + nrm * sf * (w * 0.10)
+		var a1 : Vector2 = root + tan * (w * (0.20 + 0.10 * chew)) + nrm * sf * (w * (0.12 + 0.10 * chew))
+		draw_line(a0, a1, Color(1, 1, 1, 0.40), maxf(0.7, w * 0.085), true)
+
+## 触角是多节链条，每节都带一点相位不同的正弦偏摆，所以整体像在探空气。
+## 越往尖端越细越亮，白线才有"往外伸"的透视感。
+func _draw_antennae() -> void:
+	var c : Vector2 = points[0]
+	var tan : Vector2 = _tangent_at(0)
+	var nrm : Vector2 = tan.orthogonal()
+	var w : float = _width_at(0)
+	var seg_len : float = w * 0.62 * antenna_scale
+	var count : int = 11
+
+	for side in [-1, 1]:
+		var sf : float = float(side)
+		var p : Vector2 = c + tan * (w * 0.96) + nrm * sf * (w * 0.62)
+		var ang : float = tan.angle() + sf * 0.62
+		var chain := PackedVector2Array()
+		chain.append(p)
+		for k in count:
+			# 两条不同频率的摆动叠起来，才不会像一个钟摆那样机械。
+			ang += sin(t * 2.6 + float(k) * 0.62 + sf * 1.1) * 0.20
+			ang += sin(t * 0.9 + float(k) * 0.24 + sf * 0.4) * 0.09
+			# 越靠尖端越往下垂，触角才有自重
+			ang -= float(k) * 0.018 + sf * 0.02
+			p += Vector2.from_angle(ang) * seg_len
+			chain.append(p)
+		# 分三段画，越靠尖越细越亮。用折线而不是一节一节画短线：
+		# 短线在端点会叠一层 alpha，每节接缝上都会冒出一颗"珍珠"。
+		var a0 : float = 0.38
+		var a1 : float = 0.55
+		var a2 : float = 0.72
+		draw_polyline(chain.slice(0, 5), Color(1, 1, 1, a0), maxf(0.85, w * 0.125), false)
+		draw_polyline(chain.slice(4, 9), Color(1, 1, 1, a1), maxf(0.70, w * 0.095), false)
+		draw_polyline(chain.slice(8), Color(1, 1, 1, a2), maxf(0.55, w * 0.070), false)
+
+## 末对足：少棘蜈蚣的曳步足又长又粗，向后拖着走。
+func _draw_ultimate_legs() -> void:
+	var i : int = segment_count - 1
+	var c : Vector2 = points[i]
+	var tan : Vector2 = _tangent_at(i)
+	var nrm : Vector2 = tan.orthogonal()
+	var w : float = _width_at(i)
+	var back : Vector2 = -tan
+	var reach : float = leg_reach * 1.95 * ultimate_leg_scale
+
+	for side in [-1, 1]:
+		var sf : float = float(side)
+		var base : Vector2 = c + nrm * sf * (w * 0.65)
+		var dirn : Vector2 = (back + nrm * sf * 0.52).normalized()
+		var p1 : Vector2 = base + dirn * reach * 0.56
+		var p2 : Vector2 = p1 + (dirn + nrm * sf * 0.34).normalized() * reach * 0.52
+		draw_line(base, p1, Color(1, 1, 1, 0.55), maxf(1.4, w * 0.30), true)
+		draw_line(p1, p2, Color(1, 1, 1, 0.72), maxf(1.0, w * 0.22), true)
+		draw_circle(p2, maxf(1.0, w * 0.13), Color(1, 1, 1, 0.88))
+
+		heat_leg_chains.append(base)
+		heat_leg_chains.append(p1)
+		heat_leg_chains.append(p2)
+		heat_leg_slots += 1
+
+func _draw_gizmos() -> void:
+	var c : Vector2 = points[0]
+	var tan : Vector2 = _tangent_at(0)
+	var nrm : Vector2 = tan.orthogonal()
+	var total : float = float(maxi(1, segment_count - 1)) * segment_spacing
+
+	draw_line(c - nrm * 8.0, c + nrm * 8.0, gizmo_color, 1.5)
+	draw_line(c - tan * 8.0, c + tan * 8.0, gizmo_color, 1.5)
+
+	var tail : Vector2 = points[points.size() - 1]
+	draw_line(c + nrm * 14.0, tail + nrm * 14.0, Color(gizmo_color, 0.45), 1.0)
+	draw_string(ThemeDB.fallback_font, c + nrm * 20.0 + tan * 4.0,
+		"%.0fpx  %d legs/side" % [total, maxi(0, segment_count - 1)],
+		HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, gizmo_color)
+
+# =============================== Helpers ===============================
+## 第 i 节的前进方向。头尾各用单侧差分。
+func _tangent_at(i: int) -> Vector2:
+	var a : int = clampi(i - 1, 0, points.size() - 1)
+	var b : int = clampi(i + 1, 0, points.size() - 1)
+	var v : Vector2 = points[a] - points[b]
+	if v.length() < 0.0001:
+		return Vector2.from_angle(heading)
+	return v.normalized()
+
+## 第 i 节的半宽。前段最宽，向后缓收，末端再急收成锥子。
+func _width_at(i: int) -> float:
+	var f : float = float(i) / float(maxi(1, segment_count - 1))
+	var w : float = body_radius
+	w *= lerpf(1.0, 0.84, smoothstep(0.0, 0.70, f))
+	w *= lerpf(1.0, tail_taper, smoothstep(0.70, 1.0, f))
+	if i == 0:
+		w *= head_width_scale
+	return w
+

@@ -1,0 +1,48 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/通关2.gd" id="1_s"]
+[ext_resource type="Texture2D" path="res://Assets/背景/第3关通关1.png" id="2_art"]
+
+[node name="第三关通关" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_s")
+hold_time = 2.6
+fade_in_time = 0.5
+fade_out_time = 0.55
+fallback_scene = "res://Scenes/关卡.tscn"
+narration_text = "The gu art gave me everything — yet I still find it too cruel."
+
+[node name="底色" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="铺底" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.3)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_art")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CG" type="Node2D" parent="."]
+
+[node name="插画" type="Sprite2D" parent="CG"]
+position = Vector2(960, 540)
+scale = Vector2(0.768, 0.768)
+texture = ExtResource("2_art")
+region_enabled = true
+region_rect = Rect2(0, 260, 2500, 1406)

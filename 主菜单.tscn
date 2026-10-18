@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://opeq34bt7t1c"]
+
+[node name="主菜单" type="Control" unique_id=615629918]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2

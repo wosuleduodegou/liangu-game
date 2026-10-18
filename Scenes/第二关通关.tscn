@@ -1,0 +1,48 @@
+[gd_scene format=3 uid="uid://cv2mi3ujeady2"]
+
+[ext_resource type="Script" uid="uid://beeooruveseiv" path="res://Scripts/通关2.gd" id="1_s"]
+[ext_resource type="Texture2D" uid="uid://cb213386xyk0n" path="res://Assets/背景/第2关通关1.png" id="2_art"]
+
+[node name="第二关通关" type="Control" unique_id=758862355]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_s")
+hold_time = 2.6
+fade_in_time = 0.5
+fade_out_time = 0.55
+fallback_scene = "res://Scenes/关卡.tscn"
+narration_text = "Back then I never doubted anything, proud of the status and honor my power had earned."
+
+[node name="底色" type="ColorRect" parent="." unique_id=1362734745]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="铺底" type="TextureRect" parent="." unique_id=1287050500]
+modulate = Color(1, 1, 1, 0.3)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_art")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CG" type="Node2D" parent="." unique_id=1001079607]
+
+[node name="插画" type="Sprite2D" parent="CG" unique_id=13029679]
+position = Vector2(1049, 521)
+scale = Vector2(0.9503, 0.97820973)
+texture = ExtResource("2_art")
+region_enabled = true
+region_rect = Rect2(0, 320, 2500, 1406)

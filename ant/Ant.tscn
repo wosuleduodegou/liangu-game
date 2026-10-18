@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ant/Ant.gd" id="1_ant"]
+[ext_resource type="Script" path="res://Scripts/Metabolism.gd" id="2_metab"]
+
+[node name="Ant" type="Node2D"]
+script = ExtResource("1_ant")
+
+[node name="Metabolism" type="Node" parent="."]
+script = ExtResource("2_metab")

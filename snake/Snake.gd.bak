@@ -1,0 +1,1536 @@
+@tool
+class_name Snake
+extends Node2D
+
+# ============================================================
+# Controllable procedural snake character.
+#
+# Proportions follow a SUBADULT SHARP-NOSED VIPER (Deinagkistrodon acutus,
+# "five-step snake"): roughly 60 cm total length against a 3 cm mid-body
+# diameter, i.e. a length / thickness ratio around 21:1, a wedge shaped head
+# noticeably wider than the neck, dark dorsal blotches with pale edges and a
+# vertical-slit pupil. Tune everything from the inspector.
+#
+# The head advances along a heading plus a sine wiggle; every body segment
+# follows the previous one at a fixed spacing (follow the leader).
+#
+# control_mode :
+#   0 Wander        - drifts around on its own
+#   1 Follow Mouse  - head chases the cursor
+#   2 Keyboard      - WASD only (player character)
+#   3 External      - driven by your own code through the API below
+#
+# Keyboard extras :
+#   WASD            - crawl (release to glide to a stop)
+#   Left Shift      - sprint (drains stamina)
+#   E               - toggle aim mode: auto-locks the nearest centipede in range,
+#                     LEFT CLICK bites. Locked = guaranteed hit. Esc / right click cancels.
+#   G / H / T       - debug: hurt self / heal self / grant temp trait
+#
+# Public API :
+#   steer_toward(dir) / move_toward_point(global_pos) / set_control_mode(m)
+#   set_speed(v) / get_head_global_position() / get_body_points()
+#   add_trait(dict) / remove_trait(id) / get_attack() / get_speed_multiplier()
+#   damage_segment(i, amount, sever) / restore_segment(i) / heal(amount)
+#   get_integrity() / get_segment_counts() / reset_body()
+# ============================================================
+
+enum Part { HEALTHY, INJURED, SEVERED }
+
+signal health_changed(value: float, max_value: float)
+signal stamina_changed(value: float, max_value: float)
+signal venom_changed(value: float, max_value: float)
+## 一次咬击结算完毕：是否命中、造成多少伤害、命中点与注入的毒素量。
+signal bite_landed(hit: bool, damage: float, at_position: Vector2, poison: float)
+signal segment_state_changed(index: int, state: int)
+signal died
+
+# ------------------------------- Identity -------------------------------
+@export_group("Identity")
+
+## Name printed on the status page and in the creature slot list.
+@export var display_name : String = "SHARP-NOSED VIPER"
+
+## Small subtitle under the name on the status page.
+@export var species_name : String = "Deinagkistrodon acutus"
+
+# ------------------------------- Body shape -------------------------------
+@export_group("Body Shape")
+
+## Number of body segments. More segments = smoother body, slightly more cost.
+@export_range(8, 200, 1) var segment_count : int = 92
+
+## Distance between two neighbouring segments (px). Length = count * spacing.
+@export_range(2.0, 40.0, 0.1, "suffix:px") var segment_spacing : float = 6.6
+
+## Maximum body radius, measured at the thickest point (about 1/3 down the body).
+@export_range(2.0, 40.0, 0.5, "suffix:px") var body_radius : float = 15.0
+
+## Radius at the very tip of the tail. Real vipers taper to about 1/12 of the body.
+@export_range(0.4, 20.0, 0.1, "suffix:px") var tail_radius : float = 2.6
+
+## Neck thickness as a fraction of body_radius. The head is wider than this.
+@export_range(0.3, 1.2, 0.01) var neck_ratio : float = 0.85
+
+## Head length as a multiple of body diameter (body_radius * 2).
+@export_range(0.6, 3.0, 0.05) var head_length_scale : float = 1.5
+
+## Head width as a multiple of body diameter. Viper heads are wider than the neck.
+@export_range(0.6, 2.5, 0.05) var head_width_scale : float = 1.3
+
+# ------------------------------- Ghost look -------------------------------
+@export_group("Ghost Look")
+
+## 外轮廓线。纯度 100% 的白线，整个实体只有线，没有面。
+@export var ghost_line : Color = Color(1.0, 1.0, 1.0, 0.72)
+
+## 内部结构线（脊背、骨点、关节）。比外轮廓暗一档，只做层次，不做体积。
+@export var ghost_inner : Color = Color(1.0, 1.0, 1.0, 0.20)
+
+## 轮廓线宽度。
+@export_range(0.4, 6.0, 0.1, "suffix:px") var ghost_line_width : float = 1.7
+
+## 受伤段落的标记色。纯白线稿里唯一的异色，压得很淡。
+@export var color_injured : Color = Color(0.95, 0.30, 0.24, 1.0)
+
+## 信子。只留一点点血色，主体仍然是白的。
+@export var tongue_color : Color = Color(0.98, 0.62, 0.62)
+
+# ------------------------------- Motion -------------------------------
+@export_group("Motion")
+
+## Cruise speed in pixels per second.
+@export_range(0.0, 900.0, 5.0, "suffix:px/s") var speed : float = 300.0
+
+## How fast the head weaves left and right.
+@export_range(0.0, 8.0, 0.05, "suffix:Hz") var wiggle_frequency : float = 2.2
+
+## Weave amplitude in radians. This is what makes the S shaped trail.
+@export_range(0.0, 1.5, 0.01, "suffix:rad") var wiggle_amplitude : float = 0.42
+
+## How hard the wander mode turns randomly.
+@export_range(0.0, 6.0, 0.05) var wander_strength : float = 1.2
+
+## Steering responsiveness. Higher turns into the desired heading faster.
+@export_range(0.5, 30.0, 0.1) var turn_speed : float = 7.0
+
+## In keyboard mode the snake only crawls while a direction key is held and eases
+## to a stop when you let go. This is how fast that throttle moves, in units per
+## second (1.0 = full speed). Higher = snappier, lower = more glide.
+@export_range(0.5, 40.0, 0.5, "suffix:/s") var throttle_response : float = 9.0
+
+## Keep the head inside the viewport when no play bounds are set.
+@export var stay_in_viewport : bool = true
+
+## How the snake is driven.
+@export_enum("Wander", "Follow Mouse", "Keyboard", "External") var control_mode : int = 0
+
+# ------------------------------- Sprint -------------------------------
+@export_group("Sprint")
+
+## Speed multiplier while holding Left Shift.
+@export_range(1.0, 4.0, 0.05, "suffix:x") var sprint_multiplier : float = 1.95
+
+## Stamina pool.
+@export_range(10.0, 400.0, 5.0) var max_stamina : float = 100.0
+
+## Stamina burnt per second while sprinting.
+@export_range(1.0, 200.0, 1.0, "suffix:/s") var sprint_drain : float = 34.0
+
+## Stamina recovered per second while not sprinting.
+@export_range(1.0, 200.0, 1.0, "suffix:/s") var stamina_regen : float = 20.0
+
+# ------------------------------- Bite & venom -------------------------------
+@export_group("Bite")
+
+## 锁定半径（世界像素）。按 E 时在这段距离内自动锁最近的一只蜈蚣。
+@export_range(20.0, 600.0, 1.0, "suffix:px") var bite_range : float = 86.0
+
+## 咬击弧光的张角。现在只影响挥咬特效，**不再参与命中判定**。
+@export_range(20.0, 360.0, 1.0, "suffix:deg") var bite_arc_deg : float = 96.0
+
+## Seconds between two bites.
+@export_range(0.05, 5.0, 0.01, "suffix:s") var bite_cooldown : float = 0.55
+
+## Short forward lunge when the bite fires, so the strike reads as a snap
+## instead of a stationary laser. 1.0 = no lunge.
+@export_range(1.0, 4.0, 0.05, "suffix:x") var bite_lunge : float = 2.1
+
+## How long the lunge lasts.
+@export_range(0.05, 0.6, 0.01, "suffix:s") var bite_lunge_time : float = 0.17
+
+@export_group("Venom")
+
+## Venom gland capacity. Drawn as its own gauge on the status page.
+@export_range(10.0, 400.0, 5.0) var max_venom : float = 100.0
+
+## Venom spent per bite. A bite without enough venom still lands, it is just a
+## dry bite: less damage, little or no poison.
+@export_range(0.0, 200.0, 1.0) var venom_cost : float = 26.0
+
+## Venom the gland refills per second.
+@export_range(0.0, 60.0, 0.5, "suffix:/s") var venom_regen : float = 5.5
+
+## Poison damage per second at a full venom bite.
+@export_range(0.0, 60.0, 0.5, "suffix:/s") var poison_dps : float = 7.0
+
+## How long the poison keeps working.
+@export_range(0.5, 20.0, 0.1, "suffix:s") var poison_duration : float = 4.5
+
+# ------------------------------- Heat sense -------------------------------
+# 蝮蛇靠颊窝感热，黑暗中看不见形，只能"看"到一团模糊的热影。
+@export_group("Heat Sense")
+
+## 热感应能感知到多远。超出这个距离就完全看不见了。
+@export_range(0.0, 1200.0, 10.0, "suffix:px") var heat_range : float = 320.0
+
+## 移动速度参考值：达到这个速度时热成像几乎全糊成一团。
+@export_range(20.0, 600.0, 5.0, "suffix:px/s") var heat_motion_ref : float = 240.0
+
+## 盯着同一只目标多久，热影就会稳定成形（越久越清晰）。
+@export_range(0.1, 6.0, 0.05, "suffix:s") var heat_focus_time : float = 0.9
+
+# ------------------------------- Vitals -------------------------------
+@export_group("Vitals")
+
+## Maximum health.
+@export_range(1.0, 1000.0, 1.0) var max_health : float = 100.0
+
+## Damage added by a bite before trait bonuses.
+@export_range(0.0, 500.0, 0.5) var base_attack : float = 12.0
+
+## Grant the two starter traits (one buff, one debuff) on spawn.
+@export var starter_traits : bool = true
+
+## Enable the G / H / T self test keys.
+@export var debug_keys : bool = true
+
+# ------------------------------- Bounds & editor -------------------------------
+@export_group("Bounds")
+
+## Clamp / bounce the head inside the play area (air walls) instead of the viewport.
+@export var use_play_bounds : bool = false
+
+## Shape of the play area. The arena is the inscribed circle of the level, the
+## rectangle is a plain box (used by the editor preview).
+@export_enum("Rectangle", "Circle") var bounds_shape : int = 1
+
+## Centre of the circular arena, in world space.
+@export var bounds_center : Vector2 = Vector2(2500, 2500)
+
+## Radius of the circular arena, in world space. Keep it a little smaller than
+## half the map so the body never pokes through the wall.
+@export_range(64.0, 12000.0, 1.0, "suffix:px") var bounds_radius : float = 500.0
+
+## World rectangle, only used when bounds_shape is Rectangle.
+@export var play_bounds : Rect2 = Rect2(0, 0, 1920, 1080)
+
+# ------------------------------- Vision (pit viper eyes) -------------------------------
+@export_group("Vision")
+
+## How far this snake can actually see, in world pixels. Everything past it fades
+## to black. Smaller = blinder. Only the SnakeVision filter in the level reads it.
+## Kept in step with the camera zoom so the lit disc looks the same on screen.
+@export_range(20.0, 900.0, 1.0, "suffix:px") var vision_radius : float = 45.0
+
+## Width of the fade ring, as a fraction of vision_radius (0 = hard edge).
+@export_range(0.0, 1.5, 0.05) var vision_softness : float = 0.9
+
+## How black the far side of the screen gets. 1 = pitch black.
+@export_range(0.0, 1.0, 0.01) var vision_darkness : float = 1.0
+
+## First slow beat of the fade ends here: this much shade right outside the disc.
+@export_range(0.0, 1.0, 0.01) var vision_near_shade : float = 0.06
+
+## Fast middle beat ends here: this much shade at mid_u of the fade ring.
+@export_range(0.0, 1.0, 0.01) var vision_mid_shade : float = 0.80
+
+## Where the fast middle beat takes over, as a fraction of the fade ring.
+## Smaller = the long dark ramp starts sooner and covers more of the picture.
+@export_range(0.0, 1.0, 0.01) var vision_near_u : float = 0.15
+
+## Where the fast middle beat hands back to the slow tail. Bigger = the dark ramp
+## is longer, so more of the screen sits in the readable mid-grey zone.
+@export_range(0.0, 1.0, 0.01) var vision_mid_u : float = 0.85
+
+## Gain on the lit disc around the head. Below 1 takes the glare off the bright
+## centre; the far side is left alone, so near and far get closer in brightness.
+@export_range(0.2, 2.0, 0.01) var vision_brightness : float = 0.82
+
+## Colour saturation of the whole picture. Snakes are dichromats, so keep it low.
+@export_range(0.0, 1.5, 0.05) var vision_saturation : float = 0.32
+
+## Peripheral blur, in screen pixels. Grows towards the edge of the lit circle.
+@export_range(0.0, 8.0, 0.1, "suffix:px") var vision_blur : float = 1.6
+
+## Faint colour cast. Slightly blue-green for a snake's dichromatic eye.
+@export var vision_tint : Color = Color(0.93, 1.0, 0.97)
+
+@export_group("Editor Preview")
+
+## Draw the resting pose, dimension lines and measurements in the 2D editor.
+@export var show_editor_gizmos : bool = true
+
+## Gizmo line and text colour.
+@export var gizmo_color : Color = Color(0.45, 0.82, 1.0, 0.9)
+
+## Pixels per centimetre, only used for the realistic readout in the gizmo text.
+## The level is scaled so the body is 1.2 m long: ~600 px / 120 cm = 5.
+@export_range(1.0, 40.0, 0.5) var px_per_cm : float = 5.0
+
+# ------------------------------- Runtime state -------------------------------
+var points              : PackedVector2Array = []
+var head_pos            : Vector2 = Vector2.ZERO
+var heading             : float   = 0.0
+var facing              : float   = 0.0
+var external_direction  : float   = 0.0
+var t                   : float   = 0.0
+
+var health    : float = 100.0
+var stamina   : float = 100.0
+var venom     : float = 100.0
+## 当前实际移动速度（px/s）。热感应用它判断"蛇越慢，热影越清楚"。
+var speed_now : float = 0.0
+var is_sprinting : bool = false
+var exhausted    : bool = false
+var traits       : Array[Dictionary] = []
+var part_state   : PackedByteArray = PackedByteArray()
+
+# ------------------------------ Aim / bite state ------------------------------
+## 瞄准中：蛇停下，等着左键确认。
+var aiming : bool = false
+## 瞄准方向（弧度）。锁定时自动指向锁定点，没有目标就停在当前朝向。
+var aim_angle : float = 0.0
+## 当前锁定的目标（蜈蚣）。瞄准时自动锁射程内最近的一只，左键必中。
+var lock_target : Node = null
+## 锁定点：目标身上离蛇头最近的那个骨节，世界坐标，每帧刷新。
+var lock_point : Vector2 = Vector2.ZERO
+## 冷却剩余秒数。
+var bite_cd : float = 0.0
+## 冲刺 / 突进的剩余时间。
+var lunge_time : float = 0.0
+## 挥咬特效：剩余时间、方向、命中点、伤害，供 Overlay 读取。
+var bite_fx_time : float = 0.0
+var bite_fx_dir : float = 0.0
+var bite_fx_hit : bool = false
+var bite_fx_point : Vector2 = Vector2.ZERO
+var bite_fx_damage : float = 0.0
+var bite_fx_poison : float = 0.0
+## 最近一次咬击是否命中，给 HUD 显示 HIT / MISS。
+var last_bite_hit : bool = false
+var last_bite_time : float = -999.0
+
+var _rng : RandomNumberGenerator = RandomNumberGenerator.new()
+var _editor_sig : String = ""
+## 0..1 crawl throttle. Only keyboard mode drives it, so releasing W A S D lets
+## the snake glide to a stop instead of freezing mid-slither.
+var _throttle : float = 0.0
+## Internal: lets tooling render the editor preview outside the editor
+## (used for docs / screenshots). Not exported on purpose.
+var _preview_override : bool = false
+
+func _is_preview() -> bool:
+	return _preview_override or Engine.is_editor_hint()
+
+@onready var head_area  : Area2D           = $HeadArea
+@onready var head_shape : CollisionShape2D = $HeadArea/HeadShape
+## 代谢组件（可选）。存在时接管饱食度、虚弱、耐力上限和冲刺加成。
+@onready var metab = get_node_or_null("Metabolism")
+
+# =============================== Lifecycle ===============================
+func _ready() -> void:
+	if _is_preview():
+		_build_preview()
+		return
+
+	add_to_group("snake")
+	_rng.randomize()
+	heading = _rng.randf_range(0.0, TAU)
+	external_direction = heading
+	head_pos = Vector2.ZERO
+	health = max_health
+	stamina = get_max_stamina()
+	venom = max_venom
+	_apply_head_collision()
+	points.resize(segment_count)
+	part_state.resize(segment_count)
+	for i in segment_count:
+		part_state[i] = Part.HEALTHY
+	reset_body()
+	if starter_traits:
+		_grant_starter_traits()
+
+func _apply_head_collision() -> void:
+	if head_shape and head_shape.shape is CircleShape2D:
+		head_shape.shape.radius = head_width() * 0.5
+
+func _grant_starter_traits() -> void:
+	# One buff, one debuff, both permanent: gives the status page content
+	# to show from the very first second.
+	add_trait({
+		"id": "venom_gland",
+		"name": "Venom Gland",
+		"desc": "Fangs carry venom. +4 ATK.",
+		"debuff": false,
+		"duration": -1.0,
+		"atk": 4.0,
+		"speed": 1.0,
+	})
+	add_trait({
+		"id": "cold_blood",
+		"name": "Cold Blood",
+		"desc": "Sluggish in the cold. -12% speed.",
+		"debuff": true,
+		"duration": -1.0,
+		"atk": 0.0,
+		"speed": 0.88,
+	})
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _is_preview() or control_mode != 2:
+		return
+
+	# ---- aim mode: E to enter, left click confirms, right click cancels
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_E:
+				toggle_aim()
+				get_viewport().set_input_as_handled()
+				return
+			KEY_G:
+				if debug_keys:
+					apply_random_damage(1)
+			KEY_H:
+				if debug_keys:
+					heal(25.0)
+					if not part_state.is_empty():
+						restore_segment(_rng.randi_range(0, part_state.size() - 1))
+			KEY_T:
+				if debug_keys:
+					add_trait({
+						"id": "adrenaline",
+						"name": "Adrenaline",
+						"desc": "Burst of speed from panic. +25% speed.",
+						"debuff": false,
+						"duration": 12.0,
+						"atk": 2.0,
+						"speed": 1.25,
+					})
+
+	if not aiming:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			fire_bite()
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			cancel_aim()
+			get_viewport().set_input_as_handled()
+
+## Esc 走 _input：瞄准时先退出瞄准，别让暂停菜单抢走这一下。
+func _input(event: InputEvent) -> void:
+	if _is_preview() or not aiming:
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		cancel_aim()
+		get_viewport().set_input_as_handled()
+
+# =============================== Aim / bite ===============================
+## 进入 / 退出瞄准。按下就直接锁上射程内最近的一只蜈蚣，不用自己对角度。
+func toggle_aim() -> void:
+	if aiming:
+		cancel_aim()
+		return
+	if bite_cd > 0.0:
+		return
+	aiming = true
+	# 停下时别再滑行：把节流清掉，瞄准才是"原地举头"。
+	_throttle = 0.0
+	refresh_lock()
+	if not has_lock():
+		aim_angle = heading
+
+func cancel_aim() -> void:
+	aiming = false
+	lock_target = null
+
+## 当前锁定是否有效（目标还在、还没死）。
+func has_lock() -> bool:
+	if lock_target == null or not is_instance_valid(lock_target):
+		return false
+	if lock_target.has_method("is_dead") and bool(lock_target.call("is_dead")):
+		return false
+	return true
+
+## 自动锁定：射程内离蛇头最近的骨节，**不看角度**。锁上了就一定能咬到。
+## 返回 false 表示范围内没有目标。
+func refresh_lock() -> bool:
+	var head_g : Vector2 = to_global(head_pos)
+	var best_node : Node = null
+	var best_point : Vector2 = head_g
+	var best_dist : float = bite_range
+
+	for node in get_tree().get_nodes_in_group("centipede"):
+		if not is_instance_valid(node):
+			continue
+		if node.has_method("is_dead") and bool(node.call("is_dead")):
+			continue
+		var pts = node.get("points")
+		if pts == null:
+			continue
+		for i in pts.size():
+			var wp : Vector2 = node.to_global(pts[i])
+			var d : float = head_g.distance_to(wp)
+			if d < best_dist:
+				best_dist = d
+				best_node = node
+				best_point = wp
+
+	lock_target = best_node
+	lock_point = best_point
+	if best_node != null:
+		aim_angle = (best_point - head_g).angle()
+	return best_node != null
+
+## 给瞄准方向（世界坐标点）。锁定模式下不再由鼠标驱动，接口留着给外部脚本用。
+func set_aim_point(global_point: Vector2) -> void:
+	var head_g : Vector2 = to_global(head_pos)
+	var v : Vector2 = global_point - head_g
+	if v.length_squared() > 1.0:
+		aim_angle = v.angle()
+
+## 左键确认：锁定了就一定咬中，没锁定就是空咬。
+func fire_bite() -> void:
+	if not aiming:
+		return
+	if bite_cd > 0.0:
+		return
+
+	aiming = false
+	bite_cd = bite_cooldown
+	# 咬的瞬间再刷一次，防止目标刚跑出射程。
+	refresh_lock()
+	var locked : bool = has_lock()
+
+	var head_g : Vector2 = to_global(head_pos)
+	var dir : Vector2 = Vector2.from_angle(aim_angle)
+	if locked:
+		dir = (lock_point - head_g).normalized()
+		if dir.length_squared() < 0.01:
+			dir = Vector2.from_angle(aim_angle)
+		aim_angle = dir.angle()
+
+	# 咬的时候整条蛇朝目标一甩，视觉上才像"扑"出去。
+	heading = aim_angle
+	external_direction = aim_angle
+	facing = aim_angle
+	lunge_time = bite_lunge_time
+
+	# 毒素不够就是干咬：伤害打折，几乎不留毒。
+	var inject : float = 1.0
+	if venom_cost > 0.01:
+		inject = clampf(venom / venom_cost, 0.0, 1.0)
+	var spend : float = minf(venom, venom_cost)
+	venom = maxf(0.0, venom - spend)
+	venom_changed.emit(venom, max_venom)
+
+	var result : Dictionary
+	if locked:
+		result = _bite_locked(inject)
+	else:
+		result = {"hit": false, "damage": 0.0, "at": head_g + dir * bite_range * 0.6, "poison": 0.0}
+
+	var hit : bool = bool(result.get("hit", false))
+	var dmg : float = float(result.get("damage", 0.0))
+	var at : Vector2 = result.get("at", head_g + dir * bite_range * 0.5)
+	var applied_poison : float = float(result.get("poison", 0.0))
+
+	bite_fx_time = 0.42
+	bite_fx_dir = aim_angle
+	bite_fx_hit = hit
+	bite_fx_point = at
+	bite_fx_damage = dmg
+	bite_fx_poison = applied_poison
+	last_bite_hit = hit
+	last_bite_time = t
+	lock_target = null
+	bite_landed.emit(hit, dmg, at, applied_poison)
+
+## 锁定命中：锁上了就直接结算，没有角度判定、也没有距离衰减。
+func _bite_locked(inject: float) -> Dictionary:
+	var head_g : Vector2 = to_global(head_pos)
+	var base : float = get_attack() * lerpf(0.55, 1.0, inject)
+	var applied_poison : float = poison_dps * inject
+
+	if lock_target.has_method("take_damage"):
+		lock_target.call("take_damage", base, head_g, applied_poison, poison_duration)
+	return {"hit": true, "damage": base, "at": lock_point, "poison": applied_poison}
+
+func is_aim_ready() -> bool:
+	return bite_cd <= 0.0
+
+func get_venom_ratio() -> float:
+	return clampf(venom / maxf(1.0, max_venom), 0.0, 1.0)
+
+## 移动强度：0 = 完全静止，1 ≈ 正常爬行，2 = 冲刺。热成像按它反着算清晰度。
+func motion_ratio() -> float:
+	return clampf(speed_now / maxf(1.0, heat_motion_ref), 0.0, 2.0)
+
+func _process(delta: float) -> void:
+	if _is_preview():
+		_editor_tick()
+		return
+	t += delta
+	if metab:
+		metab.tick(delta, is_sprinting)
+		# 饿瘦了耐力池会缩水，当前耐力不能超过新上限。
+		stamina = minf(stamina, get_max_stamina())
+		_sync_hunger()
+	_tick_bite(delta)
+	_tick_traits(delta)
+	_move_head(delta)
+	_follow_body()
+	if head_area:
+		head_area.position = points[0]
+	queue_redraw()
+
+# =============================== Bite timers ===============================
+func _tick_bite(delta: float) -> void:
+	# 毒腺缓慢合成，跑一段路才回得满。
+	if venom < max_venom:
+		venom = minf(max_venom, venom + venom_regen * delta)
+		venom_changed.emit(venom, max_venom)
+
+	if bite_cd > 0.0:
+		bite_cd = maxf(0.0, bite_cd - delta)
+	if lunge_time > 0.0:
+		lunge_time = maxf(0.0, lunge_time - delta)
+	if bite_fx_time > 0.0:
+		bite_fx_time = maxf(0.0, bite_fx_time - delta)
+
+	if aiming:
+		# 每帧重锁：锁定点跟着目标动，跑出射程就自动丢掉。
+		refresh_lock()
+
+# =============================== Editor preview ===============================
+func _editor_tick() -> void:
+	var sig : String = "%d|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%s|%s|%s|%d|%.1f|%.1f|%s|%s|%s|%.2f|%.2f" % [
+		segment_count, segment_spacing, body_radius, tail_radius,
+		head_length_scale, head_width_scale, neck_ratio,
+		show_editor_gizmos, gizmo_color,
+		use_play_bounds, bounds_shape, bounds_radius, px_per_cm,
+		play_bounds, bounds_center, ghost_line,
+		ghost_line_width, ghost_inner.a,
+	]
+	if sig == _editor_sig and points.size() == segment_count:
+		return
+	_editor_sig = sig
+	_build_preview()
+	queue_redraw()
+
+## Resting pose used only inside the editor: a gentle S so the proportions read.
+func _build_preview() -> void:
+	points.resize(segment_count)
+	var span : float = float(maxi(1, segment_count - 1)) * segment_spacing
+	var half : float = span * 0.5
+	for i in segment_count:
+		var x : float = half - float(i) * segment_spacing
+		var y : float = sin(float(i) * 0.34) * body_radius * 1.35
+		points[i] = Vector2(x, y)
+	head_pos = points[0]
+	heading = 0.0
+	facing = 0.0
+	external_direction = 0.0
+
+# =============================== Movement ===============================
+func _move_head(delta: float) -> void:
+	var spd : float = speed * get_speed_multiplier()
+	var wf  : float = wiggle_frequency
+	## Fraction of cruise speed actually used this frame (keyboard mode only).
+	var crawl : float = 1.0
+
+	if control_mode == 2:
+		# 瞄准中想走开：按 WASD 直接退出瞄准，不用先按 E。
+		if aiming and _read_keyboard().length() > 0.1:
+			cancel_aim()
+		if aiming:
+			# 瞄准时原地举头不动，方向跟着鼠标走，等左键确认。
+			_throttle = 0.0
+			crawl = 0.0
+			is_sprinting = false
+			_regen_stamina(delta)
+			heading = lerp_angle(heading, aim_angle, clampf(turn_speed * 1.6 * delta, 0.0, 1.0))
+		else:
+			var d : Vector2 = _read_keyboard()
+			var moving : bool = d.length() > 0.1
+			if moving:
+				external_direction = d.angle()
+			# No key held = no forward motion. The throttle eases to zero so the stop
+			# reads as the snake settling down, not as hitting a wall.
+			_throttle = move_toward(_throttle, 1.0 if moving else 0.0, throttle_response * delta)
+			crawl = _throttle
+			_update_sprint(moving and Input.is_key_pressed(KEY_SHIFT), delta)
+			heading = lerp_angle(heading, external_direction, clampf(turn_speed * delta, 0.0, 1.0))
+	elif control_mode == 0:
+		is_sprinting = false
+		_regen_stamina(delta)
+		heading += _rng.randf_range(-1.0, 1.0) * wander_strength * delta
+	elif control_mode == 1:
+		is_sprinting = false
+		_regen_stamina(delta)
+		var hp  : Vector2 = to_global(head_pos)
+		var tgt : Vector2 = get_global_mouse_position()
+		if tgt.distance_to(hp) > 4.0:
+			var desired : float = (tgt - hp).angle()
+			heading = lerp_angle(heading, desired, clampf(turn_speed * delta, 0.0, 1.0))
+	else:
+		is_sprinting = false
+		_regen_stamina(delta)
+		heading = lerp_angle(heading, external_direction, clampf(turn_speed * delta, 0.0, 1.0))
+
+	if is_sprinting:
+		# 越饿冲刺越猛：饱食度低时冲刺倍率反而往上抬，是那种拼命一窜的感觉。
+		spd *= sprint_multiplier * (float(metab.sprint_bonus()) if metab else 1.0)
+		wf  *= 1.35
+
+	# 咬击的突进：短促一段，结束后立刻回到正常节流。
+	if lunge_time > 0.0:
+		var k : float = lunge_time / maxf(0.01, bite_lunge_time)
+		spd *= bite_lunge
+		wf  *= 1.6
+		crawl = maxf(crawl, 0.55 + 0.45 * k)
+
+	spd *= crawl
+
+	var move_angle : float = heading + sin(t * wf) * wiggle_amplitude
+	# Standing still: swap the full weave for a slow head sway so the snake looks
+	# like it is sniffing the ground instead of twitching in place.
+	if crawl < 0.999:
+		var idle_sway : float = sin(t * 1.1) * wiggle_amplitude * 0.35
+		move_angle = lerpf(move_angle, heading + idle_sway, 1.0 - crawl)
+	facing = move_angle
+	head_pos += Vector2.from_angle(move_angle) * spd * delta
+	speed_now = spd
+
+	# Wall bounce: use the level arena when provided, else the viewport.
+	# External control mode is expected to clamp positions itself.
+	if control_mode != 3 and (use_play_bounds or stay_in_viewport):
+		var wp : Vector2 = to_global(head_pos)
+		var bounced : bool = false
+
+		if use_play_bounds and bounds_shape == 1:
+			# Circular arena: reflect the heading around the inward normal.
+			var off : Vector2 = wp - bounds_center
+			var rad : float = maxf(16.0, bounds_radius)
+			if off.length() > rad:
+				var n : Vector2 = off.normalized()
+				wp = bounds_center + n * rad
+				var d : Vector2 = Vector2.from_angle(heading)
+				d -= 2.0 * d.dot(n) * n          # mirror against the wall normal
+				heading = d.angle()
+				bounced = true
+		else:
+			var rect : Rect2 = play_bounds if use_play_bounds else get_viewport_rect()
+			if wp.x < rect.position.x or wp.x > rect.end.x:
+				heading = PI - heading
+				wp.x = clampf(wp.x, rect.position.x, rect.end.x)
+				bounced = true
+			if wp.y < rect.position.y or wp.y > rect.end.y:
+				heading = -heading
+				wp.y = clampf(wp.y, rect.position.y, rect.end.y)
+				bounced = true
+
+		if bounced:
+			head_pos = to_local(wp)
+
+	points[0] = head_pos
+
+func _follow_body() -> void:
+	for i in range(1, points.size()):
+		var to_prev : Vector2 = points[i] - points[i - 1]
+		var dist : float = to_prev.length()
+		if dist < 0.0001:
+			to_prev = Vector2.from_angle(heading)
+			dist = 1.0
+		points[i] = points[i - 1] + (to_prev / dist) * segment_spacing
+
+func _read_keyboard() -> Vector2:
+	# 只认 WASD。方向键不再参与操控，避免和以后的界面导航打架。
+	var ix : float = 0.0
+	var iy : float = 0.0
+	if Input.is_key_pressed(KEY_A): ix -= 1.0
+	if Input.is_key_pressed(KEY_D): ix += 1.0
+	if Input.is_key_pressed(KEY_W): iy -= 1.0
+	if Input.is_key_pressed(KEY_S): iy += 1.0
+	return Vector2(ix, iy)
+
+# =============================== Sprint / stamina ===============================
+## 耐力上限。饿到极限时池子只剩不到一半，所以饿蛇冲刺撑不了多久。
+func get_max_stamina() -> float:
+	if metab == null:
+		return max_stamina
+	return max_stamina * float(metab.stamina_cap_mult())
+
+func _update_sprint(sprint_held: bool, delta: float) -> void:
+	var cap : float = get_max_stamina()
+	if stamina <= 0.5:
+		exhausted = true
+	if exhausted and stamina >= cap * 0.3:
+		exhausted = false
+
+	var wants : bool = sprint_held and not exhausted
+	if wants:
+		is_sprinting = true
+		stamina = maxf(0.0, stamina - sprint_drain * delta)
+		if stamina <= 0.5:
+			exhausted = true
+			is_sprinting = false
+	else:
+		is_sprinting = false
+		_regen_stamina(delta)
+	stamina_changed.emit(stamina, cap)
+
+func _regen_stamina(delta: float) -> void:
+	var cap : float = get_max_stamina()
+	if stamina < cap:
+		stamina = minf(cap, stamina + stamina_regen * delta)
+		stamina_changed.emit(stamina, cap)
+
+# =============================== Stats ===============================
+func get_attack() -> float:
+	var a : float = base_attack
+	for tr in traits:
+		a += float(tr.get("atk", 0.0))
+	return a
+
+func get_speed_multiplier() -> float:
+	var m : float = 1.0
+	for tr in traits:
+		m *= float(tr.get("speed", 1.0))
+	# 饿着肚子游不动。
+	if metab:
+		m *= float(metab.speed_mult())
+	# Missing body parts slow the snake down.
+	m *= lerpf(1.0, 0.72, 1.0 - get_integrity())
+	return m
+
+## 吃东西。以后接食物 / 啃尸体直接调这个。
+func feed(amount: float) -> void:
+	if metab:
+		metab.feed(amount)
+
+## 饱食度太低时挂一个「饥饿」debuff 到特质列表，状态页能直接看到。
+## 实际的速度 / 耐力修正走 Metabolism，trait 里 speed 保持 1.0，不要重复相乘。
+func _sync_hunger() -> void:
+	if metab == null:
+		return
+	var weak : bool = bool(metab.is_weak())
+	if weak and not has_trait("starving"):
+		add_trait({
+			"id": "starving",
+			"name": "Starving",
+			"desc": "Empty belly. Slow crawl and thin stamina, but a desperate burst when sprinting.",
+			"debuff": true,
+			"duration": -1.0,
+			"atk": -2.0,
+			"speed": 1.0,
+		})
+	elif not weak and has_trait("starving"):
+		remove_trait("starving")
+
+## 0..1 body integrity: healthy segments count 1, wounded 0.5, eaten 0.
+func get_integrity() -> float:
+	if part_state.is_empty():
+		return 1.0
+	var score : float = 0.0
+	for v in part_state:
+		if v == Part.HEALTHY:
+			score += 1.0
+		elif v == Part.INJURED:
+			score += 0.5
+	return score / float(part_state.size())
+
+func get_segment_counts() -> Dictionary:
+	var out := {"healthy": 0, "injured": 0, "eaten": 0, "total": part_state.size()}
+	for v in part_state:
+		if v == Part.HEALTHY:
+			out["healthy"] += 1
+		elif v == Part.INJURED:
+			out["injured"] += 1
+		else:
+			out["eaten"] += 1
+	return out
+
+func heal(amount: float) -> void:
+	health = minf(max_health, health + maxf(0.0, amount))
+	health_changed.emit(health, max_health)
+
+func damage_segment(index: int, amount: float = 6.0, sever: bool = false) -> void:
+	if index < 0 or index >= part_state.size():
+		return
+	if sever:
+		if part_state[index] != Part.SEVERED:
+			part_state[index] = Part.SEVERED
+			health = maxf(0.0, health - maxf(amount, 8.0) * 1.6)
+			segment_state_changed.emit(index, Part.SEVERED)
+	else:
+		if part_state[index] == Part.HEALTHY:
+			part_state[index] = Part.INJURED
+			segment_state_changed.emit(index, Part.INJURED)
+		health = maxf(0.0, health - amount)
+	health_changed.emit(health, max_health)
+	if health <= 0.0:
+		died.emit()
+
+func restore_segment(index: int) -> void:
+	if index < 0 or index >= part_state.size():
+		return
+	if part_state[index] != Part.HEALTHY:
+		part_state[index] = Part.HEALTHY
+		segment_state_changed.emit(index, Part.HEALTHY)
+
+func apply_random_damage(count: int = 1) -> void:
+	if part_state.is_empty():
+		return
+	for _i in count:
+		var idx : int = _rng.randi_range(0, part_state.size() - 1)
+		if _rng.randf() < 0.4:
+			damage_segment(idx, 10.0, true)
+		else:
+			damage_segment(idx, 7.0, false)
+
+# =============================== Traits ===============================
+## trait = { id, name, desc, debuff: bool, duration: float (-1 = permanent),
+##           atk: float, speed: float (multiplier) }
+func add_trait(tdef: Dictionary) -> void:
+	var id : String = String(tdef.get("id", ""))
+	var t_copy : Dictionary = tdef.duplicate(true)
+	t_copy["left"] = float(t_copy.get("duration", -1.0))
+	for i in traits.size():
+		if String(traits[i].get("id", "")) == id:
+			traits[i] = t_copy
+			return
+	traits.append(t_copy)
+
+func remove_trait(id: String) -> void:
+	for i in range(traits.size() - 1, -1, -1):
+		if String(traits[i].get("id", "")) == id:
+			traits.remove_at(i)
+
+func has_trait(id: String) -> bool:
+	for tr in traits:
+		if String(tr.get("id", "")) == id:
+			return true
+	return false
+
+func _tick_traits(delta: float) -> void:
+	if traits.is_empty():
+		return
+	for i in range(traits.size() - 1, -1, -1):
+		var left : float = float(traits[i].get("left", -1.0))
+		if left < 0.0:
+			continue
+		left -= delta
+		if left <= 0.0:
+			traits.remove_at(i)
+		else:
+			traits[i]["left"] = left
+
+# =============================== Utility ===============================
+## Lay the body out in a straight line behind the head. Starting from a stack
+## of coincident points would make the follow-the-leader chain fold up into an
+## accordion, so this is used on spawn / teleport.
+func reset_body() -> void:
+	head_pos = Vector2.ZERO
+	var back : Vector2 = -Vector2.from_angle(heading)
+	for i in points.size():
+		points[i] = back * segment_spacing * float(i)
+	if head_area:
+		head_area.position = points[0]
+
+## Coiled spawn pose: the nose stays on the origin and the rest of the body
+## spirals inwards behind it, like a real viper resting in a jar. Needed in the
+## small arena, because the body (1.2 m) is longer than the arena radius (1 m) and
+## a straight unroll would push the tail straight through the wall.
+func reset_body_coiled(face_dir: float) -> void:
+	if points.is_empty():
+		return
+	var span : float = float(maxi(1, points.size() - 1)) * segment_spacing
+	# Distance between neighbouring coils, wide enough not to overlap.
+	var pitch : float = maxf(body_radius * 2.2, segment_spacing * 2.0)
+	var a : float = pitch / TAU
+	var th_max : float = sqrt(maxf(2.0 * span / a, 0.0001))
+	var phase : float = face_dir - th_max
+
+	for i in points.size():
+		var s_to_tail : float = span - float(i) * segment_spacing
+		var th : float = sqrt(maxf(2.0 * s_to_tail / a, 0.0))
+		var ang : float = th + phase
+		# Slightly oval, and the outer coils a touch looser: a perfect circle of
+		# evenly spaced rings reads like a mosquito coil, not a resting viper.
+		var r : float = a * th * (1.0 + 0.16 * th / th_max)
+		points[i] = Vector2(cos(ang) * r, sin(ang) * r * 0.78)
+
+	# Slide the whole coil so the nose lands on the origin again.
+	var off : Vector2 = points[0]
+	for i in points.size():
+		points[i] -= off
+	points[0] = Vector2.ZERO
+
+	head_pos = Vector2.ZERO
+	heading = face_dir
+	facing = face_dir
+	external_direction = face_dir
+	if head_area:
+		head_area.position = points[0]
+
+func head_length() -> float:
+	return body_radius * 2.0 * head_length_scale
+
+func head_width() -> float:
+	return body_radius * 2.0 * head_width_scale
+
+## Total nose-to-tail length in pixels.
+func total_length() -> float:
+	return float(maxi(1, segment_count - 1)) * segment_spacing + head_length()
+
+## Body radius at a normalised position, 0 = neck, 1 = tail tip.
+func radius_at(f: float) -> float:
+	f = clampf(f, 0.0, 1.0)
+	if f < 0.22:
+		return body_radius * lerpf(neck_ratio, 1.0, smoothstep(0.0, 0.22, f))
+	if f <= 0.5:
+		return body_radius
+	var t2 : float = (f - 0.5) / 0.5
+	return lerpf(body_radius, tail_radius, pow(t2, 1.7))
+
+# =============================== Light ===============================
+## 黑暗里只看得到红线骨架，有光照才看得见白线（体表）。
+##
+## 光源只有一个：蛇头周围那一小圈，也就是视野圈。SnakeVision 每帧把中心
+## 和半径写进这两个静态量，实体画白线时按每个点到中心的距离衰减 alpha。
+## light_radius <= 0 表示场景里没有视觉系统（编辑器预览、单体贴图），白线全亮。
+static var light_center : Vector2 = Vector2.ZERO
+static var light_radius : float = 0.0
+
+static func set_light(center: Vector2, radius: float) -> void:
+	light_center = center
+	light_radius = radius
+
+## 某个世界坐标受到的照度，1 = 全亮，0 = 全黑。
+static func light_at(world_pos: Vector2) -> float:
+	if light_radius <= 0.5:
+		return 1.0
+	var d : float = world_pos.distance_to(light_center)
+	return 1.0 - smoothstep(light_radius * 0.55, light_radius * 1.05, d)
+
+## 本地坐标版本的照度。
+func light_local(p: Vector2) -> float:
+	return Snake.light_at(to_global(p))
+
+# =============================== Drawing ===============================
+func _draw() -> void:
+	if points.is_empty():
+		return
+	_draw_body()
+	_draw_head()
+	if _is_preview():
+		_draw_editor_gizmos()
+
+func _draw_body() -> void:
+	var n : int = points.size()
+	if n < 2:
+		return
+	var use_state : bool = part_state.size() == n
+	var first : int = _body_first_index()
+
+	# 左右两条外沿先算一次，切段、填充、描边、内壁全用这一份数据。
+	var left := PackedVector2Array()
+	var right := PackedVector2Array()
+	left.resize(n)
+	right.resize(n)
+	for i in n:
+		var f : float = float(i) / float(maxi(1, n - 1))
+		var r : float = radius_at(f)
+		# 紧挨着头的几节收细一点，从头的下缘钻出来时不会先露出一截粗脖子。
+		var k : int = i - first
+		if k >= 0 and k < 3:
+			r *= lerpf(0.55, 1.0, float(k) / 3.0)
+		var tan : Vector2
+		if i == 0:
+			tan = points[1] - points[0]
+		elif i == n - 1:
+			tan = points[n - 1] - points[n - 2]
+		else:
+			tan = points[i + 1] - points[i - 1]
+		if tan.length_squared() < 0.0001:
+			tan = Vector2.from_angle(facing)
+		var nrm : Vector2 = tan.normalized().orthogonal()
+		left[i] = points[i] + nrm * r
+		right[i] = points[i] - nrm * r
+
+	# 按"还连着的段落"一段段画。被咬断的节留出真正的缺口，而不是补一块皮。
+	var i : int = first
+	while i < n:
+		if use_state and part_state[i] == Part.SEVERED:
+			i += 1
+			continue
+		var j : int = i
+		while j + 1 < n:
+			if use_state and part_state[j + 1] == Part.SEVERED:
+				break
+			j += 1
+		_stroke_run(left, right, i, j, i > first)
+		i = j + 1
+
+	# 伤口：整条白线里唯一的一点血色，压得很淡但能一眼找到。
+	if use_state:
+		for k in range(n - 1, first - 1, -1):
+			if part_state[k] != Part.INJURED:
+				continue
+			_draw_wound(points[k], radius_at(float(k) / float(maxi(1, n - 1))))
+
+## 一段连通身体的轮廓：左沿正着走、右沿倒着回来，两条边加一处封口。
+##
+## 为什么不能逐节画圆：线在相邻圆的交叠处会叠两层，白色身体就会出现一节一节的
+## 暗带，像串珠子。整段一笔画过去才是一条干净的外轮廓。
+##
+## cap_start 为 false 时不封前端 —— 那一段是钻在头底下的，封了就会在脖子后面
+## 多出一条横线，看着像脖子被切了一刀。
+##
+## 颜色是逐点给的：体表的白线只在该受光的地方出现，爬出光圈的部分直接淡成 0，
+## 黑暗里剩下的只有骨骼红线。
+func _stroke_run(left: PackedVector2Array, right: PackedVector2Array,
+		a: int, b: int, cap_start: bool) -> void:
+	var count : int = b - a + 1
+	if count < 2:
+		return
+	var poly := PackedVector2Array()
+	var cols := PackedColorArray()
+	poly.resize(count * 2)
+	cols.resize(count * 2)
+	var k : int = 0
+	for i in range(a, b + 1):
+		poly[k] = left[i]
+		cols[k] = _surface_col(left[i])
+		k += 1
+	for i in range(b, a - 1, -1):
+		poly[k] = right[i]
+		cols[k] = _surface_col(right[i])
+		k += 1
+	# 尾端（left[b] → right[b]）在这串点里本来就是连续的，不用另补。
+	# 只有前端需要手动合上：right[a] → left[a]。
+	if cap_start:
+		poly.append(left[a])
+		cols.append(cols[0])
+	draw_polyline_colors(poly, cols, ghost_line_width, true)
+
+## 体表白线在某个本地坐标上的颜色（含照度）。
+func _surface_col(p: Vector2) -> Color:
+	return Color(ghost_line.r, ghost_line.g, ghost_line.b,
+		ghost_line.a * light_local(p))
+
+## First body segment that is not hidden underneath the head wedge.
+func _body_first_index() -> int:
+	var n : int = points.size()
+	var cut : float = head_length() * 0.44
+	var d : Vector2 = Vector2.from_angle(facing)
+	var i : int = 0
+	while i < n - 1:
+		var rel : Vector2 = points[i] - points[0]
+		if rel.length() >= cut or rel.dot(d) > 0.0:
+			break
+		i += 1
+	return i
+
+func _draw_wound(p : Vector2, rad: float) -> void:
+	var lt : float = light_local(p)
+	if lt < 0.02:
+		return
+	var d    : Vector2 = Vector2.from_angle(facing)
+	var perp : Vector2 = Vector2(-d.y, d.x)
+	var a : Vector2 = p + perp * rad * 0.62 + d * rad * 0.18
+	var b : Vector2 = p - perp * rad * 0.62 - d * rad * 0.18
+	draw_line(a, b, Color(color_injured.r, color_injured.g, color_injured.b, 0.40 * lt),
+		maxf(1.2, rad * 0.20), true)
+	# 一点渗出来的血，压在裂口边上
+	draw_circle(p + perp * rad * 0.30, maxf(1.0, rad * 0.11),
+		Color(color_injured.r, color_injured.g, color_injured.b, 0.22 * lt))
+
+## 蝮蛇的头。
+##
+## 一个真正会动的楔形头，全部是程序算的：
+##   * 上颌左右两半沿"嘴线"向两侧让开，让开的量从下颌关节往吻端逐渐加大
+##     —— 这就是张嘴。咬击那一下最大，之后 0.42 秒收回。
+##   * 让开的缝里是黑色口腔和两颗向内弯的毒牙。
+##   * 颊窝（热感器）、鼻孔、眶上脊、竖瞳眼睛都跟着嘴的张开一起走。
+##   * 信子有自己的弹舌节奏（弹一下、停一下、再小弹一下），张嘴时不吐。
+##
+## 关键：让开是"沿嘴线平移"，不是整块旋转。旋转会让头的后半段甩开，
+## 脖子那里裂成两片；平移只让前端张开，头始终连在脖子上。
+func _draw_head() -> void:
+	var h : Vector2 = points[0]
+	var d : Vector2 = Vector2.from_angle(facing)
+	var perp : Vector2 = d.orthogonal()
+	var hl : float = head_length()
+	var half : float = head_width() * 0.5
+
+	# 张嘴程度：突进和咬击特效的包络取大的那个，再压成 0~1。
+	var strike : float = maxf(clampf(bite_fx_time / 0.42, 0.0, 1.0), clampf(lunge_time / 0.17, 0.0, 1.0))
+	strike = smoothstep(0.0, 0.40, strike)
+	# 静止时也有极轻的呼吸开合，头才不会像一块板。
+	var breath : float = 0.030 + 0.030 * sin(t * 1.5)
+	var jaw : float = clampf(strike * 0.40 + breath * (1.0 - strike), 0.0, 0.55)
+	# 两半让开的实际距离（像素）。
+	var gap : float = jaw * half * 0.85
+
+	# 头跟着身体轻轻晃，不是钉死在轴上的。
+	h += perp * (sin(t * 2.1) * half * 0.045)
+
+	# 剖面：[沿头轴的位置(×头长), 半宽(×头宽的一半)]
+	# 后段是窄脖子，随后迅速撑成毒腺那两鼓（"铲形"），再直线收到钝吻。
+	# 关键是前半段别鼓：鼓了就成鱼头，直着收才像蝮蛇。
+	var prof : Array = [
+		[-0.52, 0.30], [-0.46, 0.56], [-0.40, 0.76], [-0.33, 0.92],
+		[-0.25, 1.00], [-0.15, 1.00], [-0.05, 0.96], [0.06, 0.89],
+		[0.18, 0.78], [0.30, 0.66], [0.42, 0.52], [0.52, 0.36],
+		[0.60, 0.10],
+	]
+	if gap < 1.2:
+		# 嘴基本闭着：整颗头是一个多边形，只有一圈外轮廓，中间不留缝。
+		var poly : PackedVector2Array = _head_closed(h, d, perp, hl, half, prof)
+		poly.append(poly[0])
+		draw_polyline(poly, ghost_line, ghost_line_width, true)
+		# 闭合时的嘴线：一条极淡的中缝，用来说明"嘴在哪"，不参与开合。
+		draw_line(h + d * (hl * 0.10), h + d * (hl * 0.50),
+			Color(ghost_inner.r, ghost_inner.g, ghost_inner.b, ghost_inner.a * 1.3),
+			maxf(0.7, ghost_line_width * 0.7), true)
+	else:
+		# 张嘴：两半各自只是一条边，中间让开的空隙直接透出背景。
+		# （以前这里填了一块黑口腔，纯线稿里那块面反而把"张开的嘴"堵死了。）
+		for side in [-1.0, 1.0]:
+			var sf : float = float(side)
+			var pts : PackedVector2Array = _head_half(h, d, perp, hl, half, prof, sf, gap)
+			# 只描外沿，嘴线留在轮廓的缺口里。
+			var edge := PackedVector2Array()
+			for k in range(_HEAD_STEPS + 1, pts.size()):
+				edge.append(pts[k])
+			draw_polyline(edge, ghost_line, ghost_line_width, true)
+			# 后缘封口：不封的话张开的半边在后脑会齐刷刷断掉
+			draw_line(edge[edge.size() - 1], pts[0], ghost_line, ghost_line_width, true)
+
+	# ---- 眼睛：整条线稿里唯一的一小块面，暗场里就靠这两个亮点定朝向 ----
+	# 俯视看蛇眼是个杏仁形的长椭圆；瞳孔是竖缝。
+	var er : float = half * 0.112
+	for side in [-1.0, 1.0]:
+		var sf : float = float(side)
+		var ep : Vector2 = _head_point(h, d, perp, hl, -0.05, 0.60, half, sf, gap)
+		# 眼窝：一圈很淡的杏仁轮廓
+		var rim := PackedVector2Array()
+		for k in 15:
+			var a : float = TAU * float(k) / 14.0
+			rim.append(ep + d * (cos(a) * er * 1.25) + perp * (sin(a) * er * 0.82))
+		draw_polyline(rim, Color(1, 1, 1, 0.42), maxf(0.7, ghost_line_width * 0.6), true)
+		# 眼珠：一小块实心白
+		var ball := PackedVector2Array()
+		for k in 15:
+			var a : float = TAU * float(k) / 14.0
+			ball.append(ep + d * (cos(a) * er * 0.88) + perp * (sin(a) * er * 0.58))
+		draw_colored_polygon(ball, Color(1, 1, 1, 0.92))
+		# 竖瞳：一道压到背景色的细缝，白珠上挖出黑缝，猫眼就成了
+		draw_line(ep + perp * er * 0.44, ep - perp * er * 0.44,
+			Color(0.035, 0.032, 0.04, 1.0), maxf(0.8, er * 0.17), true)
+
+	# ---- 眶上脊：眼睛上方那道亮边，蝮蛇的"眉骨" ----
+	for side in [-1.0, 1.0]:
+		var sf : float = float(side)
+		var ridge := PackedVector2Array([
+			_head_point(h, d, perp, hl, -0.16, 0.92, half, sf, gap),
+			_head_point(h, d, perp, hl, 0.06, 0.90, half, sf, gap),
+			_head_point(h, d, perp, hl, 0.26, 0.70, half, sf, gap),
+		])
+		draw_polyline(ridge, Color(1, 1, 1, 0.55), maxf(1.0, half * 0.05), true)
+
+	# ---- 颊窝 + 鼻孔：只用线和圈，不填深色块 ----
+	for side in [-1.0, 1.0]:
+		var sf : float = float(side)
+		# 颊窝：蝮蛇的"热感器"，就是热感应机制的来源。一个小圆环
+		var pit : Vector2 = _head_point(h, d, perp, hl, 0.30, 0.40, half, sf, gap)
+		draw_arc(pit, maxf(1.2, half * 0.075), 0.0, TAU, 9, Color(1, 1, 1, 0.34), 0.9, true)
+		# 鼻孔：一个点
+		var nose : Vector2 = _head_point(h, d, perp, hl, 0.42, 0.24, half, sf, gap)
+		draw_circle(nose, maxf(0.7, half * 0.026), Color(1, 1, 1, 0.42))
+
+	# ---- 毒牙：张嘴才露出来，两颗向内弯的钩子 ----
+	if gap > 0.6:
+		var fang_amt : float = clampf((gap - 0.6) / (half * 0.25), 0.0, 1.0)
+		for side in [-1.0, 1.0]:
+			var sf : float = float(side)
+			var root : Vector2 = _head_point(h, d, perp, hl, 0.36, 0.20, half, sf, gap)
+			var tip : Vector2 = _head_point(h, d, perp, hl, 0.48, 0.04, half, sf, gap)
+			var mid : Vector2 = root.lerp(tip, 0.55) - perp * (half * 0.06 * sf)
+			draw_polyline(PackedVector2Array([root, mid, tip]),
+				Color(1, 1, 1, 0.30 + 0.60 * fang_amt), maxf(1.0, half * 0.062), true)
+			draw_circle(tip, maxf(0.8, half * 0.030), Color(1, 1, 1, 0.30 + 0.65 * fang_amt))
+
+	# ---- 信子：嘴闭着时才吐，从吻端的缺口里伸出来 ----
+	var tg : float = _tongue_amount()
+	if tg > 0.01 and gap < 0.55:
+		var base : Vector2 = h + d * (hl * 0.56)
+		var tl : float = head_width() * (0.20 + 0.52 * tg)
+		var tip : Vector2 = base + d * tl
+		var col := Color(tongue_color.r, tongue_color.g, tongue_color.b, 0.18 + 0.62 * tg)
+		var tw : float = maxf(1.0, head_width() * 0.042)
+		draw_line(base, tip, col, tw, true)
+		var fork : float = head_width() * 0.20 * tg
+		draw_line(tip, tip + (d + perp * 0.62).normalized() * fork, col, tw * 0.85, true)
+		draw_line(tip, tip + (d - perp * 0.62).normalized() * fork, col, tw * 0.85, true)
+
+# 头形采样的范围与密度。S0 是后脑（收进脖子），S1 是吻端。
+const _HEAD_S0 : float = -0.52
+const _HEAD_S1 : float = 0.60
+const _HEAD_STEPS : int = 22
+
+## 闭合状态的整颗头：左半边正着走、右半边倒着回来，一个多边形。
+func _head_closed(h: Vector2, d: Vector2, perp: Vector2, hl: float,
+		half: float, prof: Array) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for k in _HEAD_STEPS + 1:
+		var s : float = lerpf(_HEAD_S0, _HEAD_S1, float(k) / float(_HEAD_STEPS))
+		pts.append(h + d * (hl * s) + perp * (_head_profile(s, prof) * half))
+	for k in range(_HEAD_STEPS, -1, -1):
+		var s : float = lerpf(_HEAD_S0, _HEAD_S1, float(k) / float(_HEAD_STEPS))
+		pts.append(h + d * (hl * s) - perp * (_head_profile(s, prof) * half))
+	return pts
+
+## 张开时的单侧上颌：内缘是"嘴线"（s 越靠前让得越开），外缘是头的外轮廓。
+func _head_half(h: Vector2, d: Vector2, perp: Vector2, hl: float, half: float,
+		prof: Array, side: float, gap: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for k in _HEAD_STEPS + 1:
+		var s : float = lerpf(_HEAD_S0, _HEAD_S1, float(k) / float(_HEAD_STEPS))
+		pts.append(h + d * (hl * s) + perp * _jaw_offset(s, side, gap))
+	for k in range(_HEAD_STEPS, -1, -1):
+		var s : float = lerpf(_HEAD_S0, _HEAD_S1, float(k) / float(_HEAD_STEPS))
+		var w : float = _head_profile(s, prof) * half * side + _jaw_offset(s, side, gap)
+		pts.append(h + d * (hl * s) + perp * w)
+	return pts
+
+## 张嘴时每侧沿嘴线让开的距离。下颌关节附近为 0，越靠吻端越大，
+## 所以头不会从脖子那里裂开，只有前端张开。
+func _jaw_offset(s: float, side: float, gap: float) -> float:
+	return side * gap * smoothstep(0.05, 0.60, s)
+
+## 头上的一个特征点：沿轴的位置 s、离轴的距离 wf（×半宽）。
+func _head_point(h: Vector2, d: Vector2, perp: Vector2, hl: float, s: float,
+		wf: float, half: float, side: float, gap: float) -> Vector2:
+	return h + d * (hl * s) + perp * (half * wf * side + _jaw_offset(s, side, gap))
+
+## 剖面曲线求值。控制点之间用 Catmull-Rom 插值，而不是直线连——
+## 直线连出来的头是有棱有角的"砖头"，插值之后才是肉长出来的曲线。
+func _head_profile(s: float, prof: Array) -> float:
+	var n : int = prof.size()
+	if s <= float(prof[0][0]):
+		return float(prof[0][1])
+	for k in range(1, n):
+		var s1 : float = float(prof[k][0])
+		if s <= s1:
+			var s0 : float = float(prof[k - 1][0])
+			var t : float = clampf((s - s0) / maxf(0.0001, s1 - s0), 0.0, 1.0)
+			var p0 : float = float(prof[maxi(0, k - 2)][1])
+			var p1 : float = float(prof[k - 1][1])
+			var p2 : float = float(prof[k][1])
+			var p3 : float = float(prof[mini(n - 1, k + 1)][1])
+			return _catmull(p0, p1, p2, p3, t)
+	return float(prof[n - 1][1])
+
+func _catmull(p0: float, p1: float, p2: float, p3: float, t: float) -> float:
+	var t2 : float = t * t
+	var t3 : float = t2 * t
+	return 0.5 * ((2.0 * p1) + (-p0 + p2) * t
+		+ (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+		+ (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+
+## 弹舌节奏：快速弹出 → 停一下 → 收回，过一会儿再小的弹一次。
+## 用周期函数写，不存状态，所以暂停/恢复也不会乱。
+func _tongue_amount() -> float:
+	var ph : float = fposmod(t, 2.6)
+	if ph < 0.12:
+		return smoothstep(0.0, 0.12, ph)
+	if ph < 0.26:
+		return 1.0
+	if ph < 0.40:
+		return 1.0 - smoothstep(0.26, 0.40, ph)
+	var ph2 : float = ph - 1.45
+	if ph2 > 0.0 and ph2 < 0.24:
+		return sin(ph2 / 0.24 * PI) * 0.55
+	return 0.0
+
+# =============================== Editor gizmos ===============================
+func _draw_editor_gizmos() -> void:
+	if not show_editor_gizmos:
+		return
+	var font : Font = ThemeDB.fallback_font
+	if font == null:
+		return
+	var col : Color = gizmo_color
+	var dim : Color = Color(gizmo_color, gizmo_color.a * 0.75)
+	var fs : int = 14
+
+	var span : float = float(maxi(1, segment_count - 1)) * segment_spacing
+	var left : float = -span * 0.5
+	var right : float = span * 0.5
+	var length_px : float = total_length()
+	var dia : float = body_radius * 2.0
+	var ratio : float = length_px / maxf(1.0, dia)
+
+	# measurement bar under the body
+	var ybar : float = body_radius + 56.0
+	draw_line(Vector2(left, ybar), Vector2(right, ybar), col, 1.5, true)
+	draw_line(Vector2(left, ybar - 8), Vector2(left, ybar + 8), col, 1.5, true)
+	draw_line(Vector2(right, ybar - 8), Vector2(right, ybar + 8), col, 1.5, true)
+	draw_line(Vector2(right, ybar), Vector2(right + head_length() * 0.56, ybar), dim, 1.0, true)
+
+	var length_cm : float = length_px / maxf(0.01, px_per_cm)
+	draw_string(font, Vector2(left, ybar + 24),
+		"LENGTH %.0f px  ~ %.1f cm" % [length_px, length_cm],
+		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+	# diameter marker on the left
+	var dx : float = left - 34.0
+	draw_line(Vector2(dx, -body_radius), Vector2(dx, body_radius), col, 1.5, true)
+	draw_line(Vector2(dx - 6, -body_radius), Vector2(dx + 6, -body_radius), col, 1.5, true)
+	draw_line(Vector2(dx - 6, body_radius), Vector2(dx + 6, body_radius), col, 1.5, true)
+	draw_string(font, Vector2(dx - 96, 4),
+		"DIA %.0f px" % dia, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	draw_string(font, Vector2(dx - 96, 22),
+		"~ %.1f cm" % (dia / maxf(0.01, px_per_cm)), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, dim)
+
+	# headline readout
+	var top : float = -body_radius - 66.0
+	draw_string(font, Vector2(left, top),
+		"SUBADULT SHARP-NOSED VIPER", HORIZONTAL_ALIGNMENT_LEFT, -1, fs + 2, col)
+	draw_string(font, Vector2(left, top + 22),
+		"L/D %.1f   SEGMENTS %d   SPACING %.1f px   HEAD %.0f x %.0f px" % [
+			ratio, segment_count, segment_spacing, head_width(), head_length()],
+		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, dim)
+
+	# head / tail markers
+	draw_string(font, Vector2(right + head_length() * 0.56 + 10.0, -body_radius - 6.0),
+		"HEAD", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, dim)
+	draw_string(font, Vector2(left - 12.0, body_radius + 30.0),
+		"TAIL", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, dim)
+
+	# play area, when the level drives the snake with air walls
+	if use_play_bounds:
+		var bc : Color = Color(col, 0.55)
+		if bounds_shape == 1:
+			_dashed_circle(to_local(bounds_center), bounds_radius, bc)
+			draw_string(font, to_local(bounds_center) + Vector2(-bounds_radius, -bounds_radius - 8.0),
+				"PLAY ARENA  r = %d px" % int(bounds_radius),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, bc)
+		else:
+			var p0 : Vector2 = to_local(play_bounds.position)
+			var p1 : Vector2 = to_local(play_bounds.end)
+			var r := Rect2(p0, p1 - p0).abs()
+			_dashed_rect(r, bc)
+			draw_string(font, r.position + Vector2(8, 22),
+				"PLAY BOUNDS", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, bc)
+
+func _dashed_circle(c: Vector2, radius: float, col: Color) -> void:
+	var seg : int = maxi(32, int(radius * 0.12))
+	seg = mini(seg, 240)
+	var prev : Vector2 = c + Vector2(radius, 0.0)
+	for i in range(1, seg + 1):
+		var a : float = TAU * float(i) / float(seg)
+		var p : Vector2 = c + Vector2.from_angle(a) * radius
+		if i % 2 == 0:
+			draw_line(prev, p, col, 1.5, true)
+		prev = p
+
+func _dashed_rect(r: Rect2, c: Color) -> void:
+	var corners : Array[Vector2] = [
+		r.position,
+		Vector2(r.end.x, r.position.y),
+		r.end,
+		Vector2(r.position.x, r.end.y),
+	]
+	for i in corners.size():
+		_dashed_line(corners[i], corners[(i + 1) % corners.size()], c, 1.5)
+
+func _dashed_line(a: Vector2, b: Vector2, c: Color, w: float) -> void:
+	var total : float = a.distance_to(b)
+	var dir : Vector2 = (b - a) / maxf(0.001, total)
+	var step : float = 16.0
+	var pos : float = 0.0
+	while pos < total:
+		var seg_end : float = minf(pos + step * 0.55, total)
+		draw_line(a + dir * pos, a + dir * seg_end, c, w, true)
+		pos += step
+
+# =============================== Public API ===============================
+func steer_toward(dir: Vector2) -> void:
+	if dir.length() > 0.001:
+		external_direction = dir.angle()
+
+func move_toward_point(target_global: Vector2) -> void:
+	var local_target : Vector2 = to_local(target_global)
+	if local_target.distance_to(points[0]) > 4.0:
+		external_direction = (local_target - points[0]).angle()
+
+func set_control_mode(m: int) -> void:
+	control_mode = clampi(m, 0, 3)
+
+func set_speed(v: float) -> void:
+	speed = max(0.0, v)
+
+func get_head_global_position() -> Vector2:
+	return to_global(points[0])
+
+## 热感应用的自身轮廓（本地坐标，闭合多边形）。
+## 沿左右两条边缘各走一遍、再反着接回来，中间是空的 —— 画出来就是"透明 + 描边"。
+func get_heat_outline() -> PackedVector2Array:
+	var n : int = points.size()
+	if n < 2:
+		return PackedVector2Array()
+
+	var left := PackedVector2Array()
+	var right := PackedVector2Array()
+	left.resize(n)
+	right.resize(n)
+
+	# 和 _draw_body 用同一套收细规则，热感应的白轮廓才和实体完全重合。
+	var first : int = _body_first_index()
+
+	for i in n:
+		var f : float = float(i) / float(maxi(1, n - 1))
+		var r : float = radius_at(f)
+		var k : int = i - first
+		if k >= 0 and k < 3:
+			r *= lerpf(0.55, 1.0, float(k) / 3.0)
+		var tan : Vector2
+		if i == 0:
+			tan = (points[1] - points[0])
+		elif i == n - 1:
+			tan = (points[n - 1] - points[n - 2])
+		else:
+			tan = (points[i + 1] - points[i - 1])
+		if tan.length_squared() < 0.0001:
+			tan = Vector2.from_angle(heading)
+		var nrm : Vector2 = tan.normalized().orthogonal()
+		left[i] = points[i] + nrm * r
+		right[i] = points[i] - nrm * r
+
+	var out := PackedVector2Array()
+	out.append_array(left)
+	for i in range(n - 1, -1, -1):
+		out.append(right[i])
+	out.append(left[0])
+	return out
+
+func get_body_points() -> PackedVector2Array:
+	var out : PackedVector2Array = []
+	out.resize(points.size())
+	for i in points.size():
+		out[i] = to_global(points[i])
+	return out

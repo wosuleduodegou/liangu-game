@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/AimOverlay.gd" id="1_aim_overlay"]
+
+[node name="AimOverlay" type="CanvasLayer"]
+layer = 12
+
+[node name="Draw" type="Node2D" parent="."]
+script = ExtResource("1_aim_overlay")

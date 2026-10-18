@@ -1,0 +1,38 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ant/Ant.gd" id="1_ant"]
+[ext_resource type="Script" path="res://Scripts/Metabolism.gd" id="2_metab"]
+
+[node name="QueenAnt" type="Node2D"]
+script = ExtResource("1_ant")
+display_name = "Queen Ant"
+kill_label = "QUEEN ANT"
+is_queen = true
+segment_spacing = 6.5
+head_radius = 1.5
+thorax_radius = 1.9
+abdomen_radius = 3.2
+abdomen_length = 13.0
+waist_pinch = 0.72
+jaw_scale = 0.28
+ghost_line_width = 0.85
+leg_size = 0.46
+leg_reach = 2.4
+antenna_scale = 0.62
+speed = 36.0
+turn_speed = 1.8
+fear_range = 70.0
+flee_speed_boost = 1.2
+flock_range = 0.0
+max_health = 220.0
+death_fade = 1.8
+attack_damage = 11.0
+attack_range = 34.0
+attack_cooldown = 1.5
+
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="Metabolism" type="Node" parent="."]
+script = ExtResource("2_metab")

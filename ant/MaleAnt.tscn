@@ -1,0 +1,34 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ant/Ant.gd" id="1_ant"]
+[ext_resource type="Script" path="res://Scripts/Metabolism.gd" id="2_metab"]
+
+[node name="MaleAnt" type="Node2D"]
+script = ExtResource("1_ant")
+display_name = "Male Ant"
+kill_label = "MALE ANT"
+segment_spacing = 3.2
+head_radius = 1.15
+thorax_radius = 1.7
+abdomen_radius = 1.35
+abdomen_length = 3.4
+waist_pinch = 0.6
+wing_scale = 1.0
+wing_beat = 0.3
+ghost_line_width = 0.6
+leg_size = 0.62
+leg_reach = 2.2
+antenna_scale = 0.8
+speed = 132.0
+turn_speed = 7.0
+fear_range = 260.0
+flee_speed_boost = 1.9
+flock_range = 220.0
+max_health = 16.0
+
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="Metabolism" type="Node" parent="."]
+script = ExtResource("2_metab")

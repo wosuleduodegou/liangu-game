@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://0rsafgvqc424"]
+
+[ext_resource type="Script" uid="uid://beeooruveseiv" path="res://Scripts/通关2.gd" id="1_s"]
+[ext_resource type="Texture2D" uid="uid://b2px4bgs3w8a0" path="res://Assets/背景/第一关通关1.png" id="2_art"]
+[ext_resource type="PackedScene" path="res://snake/Snake.tscn" id="3_snake"]
+
+[node name="第一关通关2" type="Control" unique_id=918472534]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_s")
+
+[node name="底色" type="ColorRect" parent="." unique_id=1120298171]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="铺底" type="TextureRect" parent="." unique_id=1783646484]
+modulate = Color(1, 1, 1, 0.44)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_art")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CG" type="Node2D" parent="." unique_id=911244]
+
+[node name="插画" type="Sprite2D" parent="CG" unique_id=285249163]
+position = Vector2(1041, 568)
+scale = Vector2(0.84440005, 0.8399999)
+texture = ExtResource("2_art")
+
+[node name="Snake" parent="CG" unique_id=102976025 instance=ExtResource("3_snake")]
+z_index = 1
+position = Vector2(658, 1091)
+scale = Vector2(2.8, 2.8)
+show_hud = false
+allow_stealth = false
+speed = 0.0
+control_mode = 3

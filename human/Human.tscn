@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://human/Human.gd" id="1_human"]
+
+[node name="人" type="Node2D"]
+script = ExtResource("1_human")

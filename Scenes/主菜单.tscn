@@ -1,0 +1,474 @@
+[gd_scene format=3 uid="uid://hety5lnmrpcb"]
+
+[ext_resource type="Script" uid="uid://dqf4e2wyxd6ky" path="res://Scripts/主菜单.gd" id="1_menu"]
+[ext_resource type="Script" uid="uid://cijwqqn7k0cqc" path="res://Scripts/node_2d.gd" id="2_art"]
+[ext_resource type="Texture2D" uid="uid://bs13nbqalflpd" path="res://Assets/背景/主背景图 真真背景.png" id="3_bg"]
+[ext_resource type="Texture2D" uid="uid://dy4yd3xs3cc8v" path="res://Assets/背景/主背景图 字体.png" id="4_title"]
+[ext_resource type="Shader" uid="uid://csii4in0wv57j" path="res://Scripts/title_shadow.gdshader" id="6_shadow"]
+[ext_resource type="FontFile" uid="uid://d4g0sax7dwam6" path="res://Assets/字体/Piedra-Regular.ttf" id="7_font"]
+
+[sub_resource type="Theme" id="Theme_menu"]
+default_font = ExtResource("7_font")
+default_font_size = 64
+
+[sub_resource type="ShaderMaterial" id="Mat_title_shadow"]
+shader = ExtResource("6_shadow")
+shader_parameter/shadow_color = Color(0.05, 0.035, 0.02, 1)
+shader_parameter/opacity = 0.44
+shader_parameter/blur_px = 8.0
+shader_parameter/thickness = 1.35
+
+[sub_resource type="StyleBoxFlat" id="SB_normal"]
+content_margin_left = 30.0
+content_margin_top = 10.0
+content_margin_right = 30.0
+content_margin_bottom = 10.0
+bg_color = Color(0.56, 0.49933332, 0.42000002, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="SB_pressed"]
+content_margin_left = 30.0
+content_margin_top = 10.0
+content_margin_right = 30.0
+content_margin_bottom = 10.0
+bg_color = Color(0.44, 0.39, 0.33, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="SB_hover"]
+content_margin_left = 30.0
+content_margin_top = 10.0
+content_margin_right = 30.0
+content_margin_bottom = 10.0
+bg_color = Color(0.9, 0.83, 0.69, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+expand_margin_left = 3.0
+expand_margin_top = 3.0
+expand_margin_right = 3.0
+expand_margin_bottom = 3.0
+shadow_color = Color(1, 0.9, 0.7, 0.4)
+shadow_size = 14
+
+[sub_resource type="StyleBoxFlat" id="SB_focus"]
+content_margin_left = 30.0
+content_margin_top = 10.0
+content_margin_right = 30.0
+content_margin_bottom = 10.0
+bg_color = Color(1, 0.83, 0.42, 0.06)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.84, 0.44, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+expand_margin_left = 4.0
+expand_margin_top = 4.0
+expand_margin_right = 4.0
+expand_margin_bottom = 4.0
+shadow_color = Color(1, 0.74, 0.32, 0.45)
+shadow_size = 14
+
+[sub_resource type="StyleBoxFlat" id="SB_panel"]
+content_margin_left = 36.0
+content_margin_top = 30.0
+content_margin_right = 36.0
+content_margin_bottom = 30.0
+bg_color = Color(0.18, 0.15, 0.12, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.56, 0.499, 0.42, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="SB_set_normal"]
+content_margin_left = 24.0
+content_margin_top = 14.0
+content_margin_right = 24.0
+content_margin_bottom = 14.0
+bg_color = Color(0.56, 0.499, 0.42, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="SB_set_pressed"]
+content_margin_left = 24.0
+content_margin_top = 14.0
+content_margin_right = 24.0
+content_margin_bottom = 14.0
+bg_color = Color(0.44, 0.39, 0.33, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="SB_set_hover"]
+content_margin_left = 24.0
+content_margin_top = 14.0
+content_margin_right = 24.0
+content_margin_bottom = 14.0
+bg_color = Color(0.88, 0.81, 0.67, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+expand_margin_left = 3.0
+expand_margin_top = 3.0
+expand_margin_right = 3.0
+expand_margin_bottom = 3.0
+shadow_color = Color(1, 0.9, 0.7, 0.4)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="SB_set_focus"]
+content_margin_left = 24.0
+content_margin_top = 14.0
+content_margin_right = 24.0
+content_margin_bottom = 14.0
+bg_color = Color(1, 0.83, 0.42, 0.07)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.85, 0.45, 1)
+corner_radius_top_left = 11
+corner_radius_top_right = 11
+corner_radius_bottom_right = 11
+corner_radius_bottom_left = 11
+expand_margin_left = 5.0
+expand_margin_top = 5.0
+expand_margin_right = 5.0
+expand_margin_bottom = 5.0
+shadow_color = Color(1, 0.74, 0.32, 0.5)
+shadow_size = 16
+
+[sub_resource type="ButtonGroup" id="BG_lang"]
+
+[node name="主菜单" type="Control" unique_id=1709106695]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_menu")
+script = ExtResource("1_menu")
+
+[node name="Art" type="Node2D" parent="." unique_id=442604040]
+script = ExtResource("2_art")
+
+[node name="Background" type="Parallax2D" parent="Art" unique_id=1745752677]
+scroll_scale = Vector2(0.8, 0.8)
+
+[node name="Sprite2D" type="Sprite2D" parent="Art/Background" unique_id=804680329]
+position = Vector2(20.281307, 22.843754)
+scale = Vector2(0.5975142, 0.62271965)
+texture = ExtResource("3_bg")
+
+[node name="TitleLayer" type="Parallax2D" parent="Art" unique_id=1205297506]
+scroll_scale = Vector2(1.2, 1.2)
+
+[node name="TitleShadow" type="Sprite2D" parent="Art/TitleLayer" unique_id=530261216]
+material = SubResource("Mat_title_shadow")
+position = Vector2(455.59375, 24.609375)
+scale = Vector2(0.46735322, 0.40638956)
+texture = ExtResource("4_title")
+
+[node name="Sprite2D2" type="Sprite2D" parent="Art/TitleLayer" unique_id=1392030589]
+position = Vector2(431.59375, -1.390625)
+scale = Vector2(0.46735322, 0.40638956)
+texture = ExtResource("4_title")
+
+[node name="Menu" type="CenterContainer" parent="." unique_id=1081271338]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 150.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="VBoxContainer" parent="Menu" unique_id=468402570]
+custom_minimum_size = Vector2(440, 0)
+layout_mode = 2
+theme_override_constants/separation = 26
+
+[node name="StartButton" type="Button" parent="Menu/Box" unique_id=1077100501]
+custom_minimum_size = Vector2(440, 104)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.98, 0.94, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 72
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+text = "start game"
+
+[node name="OptionsButton" type="Button" parent="Menu/Box" unique_id=1111029222]
+custom_minimum_size = Vector2(440, 104)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.98, 0.94, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 72
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+text = "options"
+
+[node name="QuitButton" type="Button" parent="Menu/Box" unique_id=1410705876]
+custom_minimum_size = Vector2(440, 104)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.98, 0.94, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 72
+theme_override_styles/normal = SubResource("SB_normal")
+theme_override_styles/pressed = SubResource("SB_pressed")
+theme_override_styles/hover = SubResource("SB_hover")
+theme_override_styles/focus = SubResource("SB_focus")
+text = "quit"
+
+[node name="Settings" type="CanvasLayer" parent="." unique_id=876668002]
+layer = 100
+visible = false
+
+[node name="Root" type="Control" parent="Settings" unique_id=2035667976]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="Settings/Root" unique_id=308771271]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.04, 0.03, 0.02, 0.62)
+
+[node name="Center" type="CenterContainer" parent="Settings/Root" unique_id=1765620576]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Settings/Root/Center" unique_id=1559434872]
+custom_minimum_size = Vector2(600, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="Content" type="VBoxContainer" parent="Settings/Root/Center/Panel" unique_id=1724475524]
+layout_mode = 2
+theme_override_constants/separation = 26
+
+[node name="Title" type="Label" parent="Settings/Root/Center/Panel/Content" unique_id=528828399]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 44
+text = "SETTINGS"
+horizontal_alignment = 1
+
+[node name="MusicRow" type="HBoxContainer" parent="Settings/Root/Center/Panel/Content" unique_id=622990403]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="MusicLabel" type="Label" parent="Settings/Root/Center/Panel/Content/MusicRow" unique_id=247776144]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 26
+text = "MUSIC"
+
+[node name="MusicSlider" type="HSlider" parent="Settings/Root/Center/Panel/Content/MusicRow" unique_id=1821621057]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+value = 100.0
+
+[node name="SfxRow" type="HBoxContainer" parent="Settings/Root/Center/Panel/Content" unique_id=372297158]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="SfxLabel" type="Label" parent="Settings/Root/Center/Panel/Content/SfxRow" unique_id=1982966398]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 26
+text = "SFX"
+
+[node name="SfxSlider" type="HSlider" parent="Settings/Root/Center/Panel/Content/SfxRow" unique_id=2115858537]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+value = 100.0
+
+[node name="FullscreenCheck" type="CheckButton" parent="Settings/Root/Center/Panel/Content" unique_id=628983861]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 26
+text = "FULLSCREEN"
+
+[node name="ResRow" type="HBoxContainer" parent="Settings/Root/Center/Panel/Content" unique_id=1145112990]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="ResLabel" type="Label" parent="Settings/Root/Center/Panel/Content/ResRow" unique_id=1760365029]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 26
+text = "RESOLUTION"
+vertical_alignment = 1
+
+[node name="Spacer2" type="Control" parent="Settings/Root/Center/Panel/Content/ResRow" unique_id=37611473]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResDown" type="Button" parent="Settings/Root/Center/Panel/Content/ResRow" unique_id=1234058619]
+custom_minimum_size = Vector2(68, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("SB_set_normal")
+theme_override_styles/pressed = SubResource("SB_set_pressed")
+theme_override_styles/hover = SubResource("SB_set_hover")
+theme_override_styles/focus = SubResource("SB_set_focus")
+text = "<"
+
+[node name="ResValue" type="Label" parent="Settings/Root/Center/Panel/Content/ResRow" unique_id=108379743]
+custom_minimum_size = Vector2(210, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.74, 1)
+theme_override_font_sizes/font_size = 26
+text = "1920 x 1080"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ResUp" type="Button" parent="Settings/Root/Center/Panel/Content/ResRow" unique_id=208610535]
+custom_minimum_size = Vector2(68, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("SB_set_normal")
+theme_override_styles/pressed = SubResource("SB_set_pressed")
+theme_override_styles/hover = SubResource("SB_set_hover")
+theme_override_styles/focus = SubResource("SB_set_focus")
+text = ">"
+
+[node name="LanguageRow" type="HBoxContainer" parent="Settings/Root/Center/Panel/Content" unique_id=659306169]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="LanguageLabel" type="Label" parent="Settings/Root/Center/Panel/Content/LanguageRow" unique_id=1243181599]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.88, 0.85, 1)
+theme_override_font_sizes/font_size = 26
+text = "LANGUAGE"
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Settings/Root/Center/Panel/Content/LanguageRow" unique_id=1296739776]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EnButton" type="Button" parent="Settings/Root/Center/Panel/Content/LanguageRow" unique_id=1071512773]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("SB_set_normal")
+theme_override_styles/pressed = SubResource("SB_set_pressed")
+theme_override_styles/hover = SubResource("SB_set_hover")
+theme_override_styles/focus = SubResource("SB_set_focus")
+toggle_mode = true
+button_group = SubResource("BG_lang")
+text = "EN"
+
+[node name="ZhButton" type="Button" parent="Settings/Root/Center/Panel/Content/LanguageRow" unique_id=1905157858]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("SB_set_normal")
+theme_override_styles/pressed = SubResource("SB_set_pressed")
+theme_override_styles/hover = SubResource("SB_set_hover")
+theme_override_styles/focus = SubResource("SB_set_focus")
+toggle_mode = true
+button_group = SubResource("BG_lang")
+text = "中文"
+
+[node name="BackButton" type="Button" parent="Settings/Root/Center/Panel/Content" unique_id=1414975885]
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_styles/normal = SubResource("SB_set_normal")
+theme_override_styles/pressed = SubResource("SB_set_pressed")
+theme_override_styles/hover = SubResource("SB_set_hover")
+theme_override_styles/focus = SubResource("SB_set_focus")
+text = "BACK"
+
+[connection signal="pressed" from="Menu/Box/StartButton" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="Menu/Box/OptionsButton" to="." method="_on_options_pressed"]
+[connection signal="pressed" from="Menu/Box/QuitButton" to="." method="_on_quit_pressed"]

@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://centipede/Centipede.gd" id="1_cp"]
+[ext_resource type="Texture2D" path="res://Assets/背景/陶罐背景.jpg" id="2_bg"]
+[ext_resource type="Script" path="res://centipede/CentipedeDemo.gd" id="3_drive"]
+
+[node name="Demo" type="Node2D"]
+
+[node name="BG" type="Sprite2D" parent="."]
+position = Vector2(0, 0)
+scale = Vector2(0.2, 0.2)
+texture = ExtResource("2_bg")
+
+[node name="Centipede" type="Node2D" parent="."]
+script = ExtResource("1_cp")
+control_mode = 3
+speed = 96.0
+stay_in_viewport = false
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(4, 4)
+
+[node name="Drive" type="Node" parent="."]
+script = ExtResource("3_drive")

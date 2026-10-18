@@ -1,0 +1,38 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ant/Ant.gd" id="1_ant"]
+[ext_resource type="Script" path="res://Scripts/Metabolism.gd" id="2_metab"]
+
+[node name="SoldierAnt" type="Node2D"]
+script = ExtResource("1_ant")
+display_name = "Soldier Ant"
+kill_label = "SOLDIER ANT"
+segment_spacing = 3.6
+head_radius = 2.4
+thorax_radius = 1.15
+abdomen_radius = 1.5
+abdomen_length = 3.1
+waist_pinch = 0.6
+jaw_scale = 1.0
+ghost_line_width = 0.7
+leg_size = 0.68
+leg_reach = 2.0
+leg_hip_forward = 0.28
+antenna_scale = 0.6
+speed = 78.0
+turn_speed = 4.2
+fear_range = 110.0
+flee_speed_boost = 1.5
+flock_range = 160.0
+flock_strength = 1.0
+max_health = 60.0
+attack_damage = 7.0
+attack_range = 30.0
+attack_cooldown = 0.95
+
+stay_in_viewport = false
+use_play_bounds = true
+bounds_radius = 470.0
+
+[node name="Metabolism" type="Node" parent="."]
+script = ExtResource("2_metab")
